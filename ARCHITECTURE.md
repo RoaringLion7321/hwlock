@@ -274,6 +274,10 @@ Built with CustomTkinter (a modern-looking layer over Python's standard Tkinter)
   `_show()` (`pack()` the page, `pack_forget()` the others). `switch_mode` handles the Lock/Notes
   tabs and remembers which Lock step you were on (`lock_page`). Closing the window stops a
   running lock and notes mode first (`_on_close`).
+  `hide_to_taskbar()` minimizes the window when a lock or notes mode starts, and `show_again()`
+  restores it when the pages' `_poll()` sees that it has ended. At startup the process sets its
+  own taskbar ID (`SetCurrentProcessExplicitAppUserModelID`), so hwlock gets its own taskbar
+  button instead of being grouped under Python.
 - **`Header`**: the title, the **Lock / Notes** tab switch (a `CTkSegmentedButton`) and the
   "1 Hardware / 2 Program" step chips. `set_step` highlights a chip; `show_steps` hides them
   on the Notes tab.

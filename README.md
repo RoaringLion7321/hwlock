@@ -17,6 +17,10 @@ Selected keyboards → keys are locked to the program; selected mice → cursor 
 
 The **Notes** tab at the top switches to notes mode (see below).
 
+When a lock or notes mode starts, the window minimizes to the taskbar. Click hwlock's taskbar
+button to bring it back (e.g. to press Unlock / Stop). If the lock or notes mode is ended with
+Ctrl+Shift+F12, the window comes back on its own.
+
 ## Usage
 
 Run from inside this folder:

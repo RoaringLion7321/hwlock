@@ -6,6 +6,7 @@ Notes tab: pick a text editor; Ctrl+Shift+F10 then sends your typing to it in th
 Requires:  py -m pip install customtkinter
 Run with:  py gui.py      (or  pyw gui.py  to hide the console window)
 """
+import ctypes
 import os
 import queue
 import threading
@@ -185,6 +186,7 @@ class ProgramPage(ctk.CTkFrame):
         self.choice = tk.StringVar()
         self.lock = None
         self.lock_thread = None
+        self.paused = False
         self.log_queue = queue.Queue()
 
         ctk.CTkLabel(self, text="Choose a program", font=font(17, "bold")).pack(anchor="w")
@@ -307,6 +309,7 @@ class ProgramPage(ctk.CTkFrame):
 
         self._log(f"Locking {', '.join(d.name for d in self.selected)} → {program.exe}")
         self._set_locked_ui(True, program.exe)
+        self.app.hide_to_tray()
 
     def _run_lock(self):
         try:
@@ -342,12 +345,16 @@ class ProgramPage(ctk.CTkFrame):
             msg = self.log_queue.get_nowait()
             self._log(msg)
             if "PAUSED" in msg:
+                self.paused = True
                 self._set_status("paused")
             elif "RESUMED" in msg:
-                self._set_status("locked")
+                self.paused = False
+                self._set_status("locked", f" to {self.lock.process}")
         if self.lock_thread is not None and not self.lock_thread.is_alive():
             self.lock_thread = None
+            self.paused = False
             self._set_locked_ui(False)
+            self.app.show_again()
         self.after(100, self._poll)
 
     def shutdown(self):
@@ -459,6 +466,7 @@ class NotesPage(ctk.CTkFrame):
         self.thread = threading.Thread(target=self._run, daemon=True)
         self.thread.start()
         self._set_running_ui(True)
+        self.app.hide_to_tray()
 
     def toggle_notes(self):
         if self.running():
@@ -508,6 +516,7 @@ class NotesPage(ctk.CTkFrame):
         if self.thread is not None and not self.thread.is_alive():
             self.thread = None
             self._set_running_ui(False)
+            self.app.show_again()
         self.after(100, self._poll)
 
     def shutdown(self):
@@ -536,6 +545,16 @@ class App(ctk.CTk):
         self.show_devices()
         self.protocol("WM_DELETE_WINDOW", self._on_close)
 
+        # System tray icon, there for as long as hwlock runs.
+        self.tray, self._last_tray_status = None, None
+        try:
+            from tray import Tray
+            self.tray = Tray()
+            self.tray.start()
+            self.after(150, self._tray_poll)
+        except Exception as e:   # e.g. pystray/Pillow not installed: the GUI still works
+            self.program_page._log(f"[tray] no tray icon: {e}")
+
     def _show(self, page):
         for p in (self.device_page, self.program_page, self.notes_page):
             if p is not page:
@@ -563,13 +582,82 @@ class App(ctk.CTk):
         self._show(self.program_page)
         self.header.set_step(1)
 
+    def hide_to_tray(self):
+        """Get out of the way once a lock / notes mode starts: hide the window completely.
+        The tray icon (always there while hwlock runs) brings it back."""
+        if self.tray:
+            self.after(150, self.withdraw)   # short delay so the new status is drawn first
+        else:
+            self.after(150, self.iconify)    # no tray icon available: minimize instead
+
+    def show_again(self):
+        """Bring the window back (tray click, or Ctrl+Shift+F12 ended a lock or notes mode)."""
+        if self.state() in ("withdrawn", "iconic"):
+            self.deiconify()
+        self.lift()
+        self.focus_force()
+
+    # -------------------------------------------------------------- tray
+    def _tray_status(self):
+        """(state, tooltip, locked, notes_running, notes_on) from what the pages are doing."""
+        pp, np_ = self.program_page, self.notes_page
+        locked, notes_running = pp.locked(), np_.running()
+        notes_on = notes_running and np_.notes.on
+        parts, state = [], "idle"
+        if locked:
+            if pp.paused:
+                parts.append("lock paused")
+                state = "waiting"
+            else:
+                parts.append(f"locked to {pp.lock.process}")
+                state = "active"
+        if notes_running:
+            if notes_on:
+                parts.append(f"typing into {np_.editor_name}")
+                state = "active"
+            else:
+                parts.append("notes ready (Ctrl+Shift+F10)")
+                state = state if state == "active" else "waiting"
+        tooltip = "hwlock: " + ", ".join(parts) if parts else "hwlock"
+        return state, tooltip, locked, notes_running, notes_on
+
+    def _tray_poll(self):
+        while not self.tray.commands.empty():
+            cmd = self.tray.commands.get_nowait()
+            if cmd == "show":
+                self.show_again()
+            elif cmd == "unlock" and self.program_page.locked():
+                self.program_page.lock.stop()
+            elif cmd == "notes_toggle":
+                self.notes_page.toggle_notes()
+            elif cmd == "notes_stop" and self.notes_page.running():
+                self.notes_page.notes.stop()
+            elif cmd == "quit":
+                self._on_close()
+                return
+        status = self._tray_status()
+        if status != self._last_tray_status:
+            self._last_tray_status = status
+            state, tooltip, locked, notes_running, notes_on = status
+            self.tray.update(state=state, tooltip=tooltip, locked=locked,
+                             notes_running=notes_running, notes_on=notes_on)
+        self.after(150, self._tray_poll)
+
     def _on_close(self):
         self.program_page.shutdown()
         self.notes_page.shutdown()
+        if self.tray:
+            self.tray.stop()
         self.destroy()
 
 
 if __name__ == "__main__":
+    # Own taskbar identity, so hwlock gets its own taskbar button instead of being grouped
+    # under (and labeled as) Python.
+    try:
+        ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID("hwlock.app")
+    except (AttributeError, OSError):
+        pass
     ctk.set_appearance_mode("dark")
     ctk.set_default_color_theme("blue")
     App().mainloop()
