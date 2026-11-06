@@ -1,4 +1,7 @@
-"""hwlock GUI: step 1 pick hardware, step 2 pick a program and lock them together.
+"""hwlock GUI.
+
+Lock tab:  step 1 pick hardware, step 2 pick a program and lock them together.
+Notes tab: pick a text editor; Ctrl+Shift+F10 then sends your typing to it in the background.
 
 Requires:  py -m pip install customtkinter
 Run with:  py gui.py      (or  pyw gui.py  to hide the console window)
@@ -13,6 +16,7 @@ import customtkinter as ctk
 
 from devices import list_devices
 from lock import BLOCKABLE, DEFAULT_BLOCK, FocusLock
+from notes import NotesMode, find_text_box
 from windows import list_windows
 
 KEY_LABELS = {"win": "Win", "alttab": "Alt+Tab", "altesc": "Alt+Esc", "ctrlesc": "Ctrl+Esc", "apps": "Menu key"}
@@ -27,7 +31,10 @@ RED, RED_HOVER = "#d64545", "#b33939"
 BADGE = {"keyboard": ("#3b82f6", "Keyboard"), "mouse": ("#a855f7", "Mouse"), "hid": ("#64748b", "HID")}
 STATUS = {"idle": (("#e5e7eb", "#3a3d44"), MUTED, "Not locked"),
           "locked": (("#d6f5e1", "#1d3b2a"), ("#1f7a43", "#5fd38d"), "Locked"),
-          "paused": (("#fdf0d5", "#43361a"), ("#9a6700", "#f2c45a"), "Paused")}
+          "paused": (("#fdf0d5", "#43361a"), ("#9a6700", "#f2c45a"), "Paused"),
+          "stopped": (("#e5e7eb", "#3a3d44"), MUTED, "Not running"),
+          "notes_off": (("#fdf0d5", "#43361a"), ("#9a6700", "#f2c45a"), "Ready (off)"),
+          "notes_on": (("#d6f5e1", "#1d3b2a"), ("#1f7a43", "#5fd38d"), "Typing into")}
 
 
 def font(size=13, weight="normal"):
@@ -69,11 +76,14 @@ class ClickRow(ctk.CTkFrame):
 
 
 class Header(ctk.CTkFrame):
-    def __init__(self, master):
+    def __init__(self, master, on_mode):
         super().__init__(master, fg_color="transparent")
         ctk.CTkLabel(self, text="hwlock", font=font(22, "bold")).pack(side="left")
-        ctk.CTkLabel(self, text="  lock your hardware to one app", font=font(13), text_color=MUTED).pack(side="left", pady=(6, 0))
-        steps = ctk.CTkFrame(self, fg_color="transparent")
+        self.mode = ctk.CTkSegmentedButton(self, values=["Lock", "Notes"], font=font(13, "bold"),
+                                           command=on_mode)
+        self.mode.set("Lock")
+        self.mode.pack(side="left", padx=(16, 0), pady=(4, 0))
+        self.steps = steps = ctk.CTkFrame(self, fg_color="transparent")
         steps.pack(side="right")
         self.chips = []
         for i, text in enumerate(("1  Hardware", "2  Program")):
@@ -81,6 +91,12 @@ class Header(ctk.CTkFrame):
             chip.pack(side="left", padx=(6 if i else 0, 0))
             self.chips.append(chip)
         self.set_step(0)
+
+    def show_steps(self, visible):
+        if visible:
+            self.steps.pack(side="right")
+        else:
+            self.steps.pack_forget()
 
     def set_step(self, step):
         for i, chip in enumerate(self.chips):
@@ -340,6 +356,166 @@ class ProgramPage(ctk.CTkFrame):
             self.lock_thread.join(timeout=1)
 
 
+class NotesPage(ctk.CTkFrame):
+    """Notes mode: pick a text editor, then type into it while other windows are in front."""
+
+    def __init__(self, master, app):
+        super().__init__(master, fg_color="transparent")
+        self.app = app
+        self.editors = {}     # key -> AppWindow
+        self.rows = {}        # key -> ClickRow
+        self.radios = []
+        self.choice = tk.StringVar()
+        self.notes = None
+        self.thread = None
+        self.editor_name = ""
+        self.log_queue = queue.Queue()
+
+        ctk.CTkLabel(self, text="Notes mode", font=font(17, "bold")).pack(anchor="w")
+        ctk.CTkLabel(self, text="Type into a text editor while you click around other windows. "
+                                "Pick the editor, press Start, then use Ctrl+Shift+F10 to send your typing to it.",
+                     font=font(13), text_color=MUTED, wraplength=700, justify="left",
+                     anchor="w").pack(anchor="w", pady=(0, 10))
+
+        self.list = ctk.CTkScrollableFrame(self, fg_color="transparent", height=200)
+        self.list.pack(fill="both", expand=True)
+
+        bar = ctk.CTkFrame(self, fg_color="transparent")
+        bar.pack(fill="x", pady=(12, 0))
+        self.refresh_btn = ctk.CTkButton(bar, text="\u21bb  Refresh", width=100, fg_color="transparent",
+                                         border_width=1, text_color=("gray10", "gray90"), command=self.refresh)
+        self.refresh_btn.pack(side="left")
+        self.status = ctk.CTkLabel(bar, text="", font=font(12, "bold"), corner_radius=12, height=28, width=170)
+        self.status.pack(side="left", padx=8)
+        self.start_btn = ctk.CTkButton(bar, text="\u25b6  Start", width=130, height=38, font=font(15, "bold"),
+                                       fg_color=GREEN, hover_color=GREEN_HOVER, command=self.toggle_running)
+        self.start_btn.pack(side="right")
+        self.onoff_btn = ctk.CTkButton(bar, text="Turn on", width=110, height=38, font=font(14, "bold"),
+                                       command=self.toggle_notes, state="disabled")
+        self.onoff_btn.pack(side="right", padx=8)
+
+        ctk.CTkLabel(self, text="Ctrl+Shift+F10 notes on / off (works from any window)   \u2022   Ctrl+Shift+F12 stop",
+                     font=font(12), text_color=MUTED).pack(anchor="e", pady=(6, 0))
+        ctk.CTkLabel(self, text="Works with Notepad, Notepad++ and WordPad. Not with VS Code, Discord or other "
+                                "browser-based apps. While it's on, shortcuts in other windows don't work.",
+                     font=font(12), text_color=MUTED, wraplength=700, justify="left").pack(anchor="w", pady=(4, 0))
+        self.log_box = ctk.CTkTextbox(self, height=80, font=ctk.CTkFont(family="Consolas", size=12),
+                                      corner_radius=10, state="disabled")
+        self.log_box.pack(fill="x", pady=(6, 0))
+
+        self._set_status("stopped")
+        self.refresh()
+        self.after(100, self._poll)
+
+    def refresh(self):
+        prev = self.editors.get(self.choice.get())
+        prev_hwnd = prev.hwnd if prev else None
+        for child in self.list.winfo_children():
+            child.destroy()
+        self.editors.clear()
+        self.rows.clear()
+        self.radios.clear()
+        self.choice.set("")
+        wins = [x for x in list_windows() if x.pid != os.getpid() and find_text_box(x.hwnd)[0]]
+        for i, p in enumerate(sorted(wins, key=lambda x: x.exe.lower())):
+            key = str(i)
+            self.editors[key] = p
+            row = ClickRow(self.list, on_click=lambda k=key: self._choose(k))
+            row.pack(fill="x", pady=4, padx=(0, 6))
+            radio = ctk.CTkRadioButton(row, text="", width=24, variable=self.choice, value=key,
+                                       command=lambda k=key: self._choose(k))
+            radio.pack(side="left", padx=(14, 4), pady=12)
+            text = ctk.CTkFrame(row, fg_color="transparent")
+            text.pack(side="left", fill="x", expand=True, pady=8)
+            ctk.CTkLabel(text, text=p.exe, font=font(14, "bold"), anchor="w").pack(fill="x")
+            ctk.CTkLabel(text, text=p.title[:80], font=font(12), text_color=MUTED, anchor="w").pack(fill="x")
+            row.wire()
+            self.rows[key] = row
+            self.radios.append(radio)
+            if p.hwnd == prev_hwnd or len(wins) == 1:
+                self._choose(key)
+        if not self.editors:
+            ctk.CTkLabel(self.list, text="No supported text editor is open. Open Notepad, then press Refresh.",
+                         text_color=MUTED).pack(pady=20)
+
+    def _choose(self, key):
+        self.choice.set(key)
+        for k, row in self.rows.items():
+            row.set_active(k == key)
+
+    def running(self):
+        return self.thread is not None and self.thread.is_alive()
+
+    def toggle_running(self):
+        if self.running():
+            self.notes.stop()
+            return
+        editor = self.editors.get(self.choice.get())
+        if not editor:
+            messagebox.showwarning("hwlock", "Choose a text editor from the list.")
+            return
+        self.editor_name = editor.exe
+        self.notes = NotesMode(hwnd=editor.hwnd, log=self.log_queue.put)
+        self.thread = threading.Thread(target=self._run, daemon=True)
+        self.thread.start()
+        self._set_running_ui(True)
+
+    def toggle_notes(self):
+        if self.running():
+            self.notes.toggle()
+
+    def _run(self):
+        try:
+            self.notes.run()
+        except Exception as e:  # surface errors in the log instead of dying silently
+            self.log_queue.put(f"[error] {e}")
+
+    def _set_status(self, kind, detail=""):
+        bg, fg, text = STATUS[kind]
+        self.status.configure(text=f"\u25cf  {text}{detail}", fg_color=bg, text_color=fg)
+
+    def _set_running_ui(self, running):
+        if running:
+            self.start_btn.configure(text="\u25a0  Stop", fg_color=RED, hover_color=RED_HOVER)
+            self.onoff_btn.configure(state="normal", text="Turn on")
+            self._set_status("notes_off")
+        else:
+            self.start_btn.configure(text="\u25b6  Start", fg_color=GREEN, hover_color=GREEN_HOVER)
+            self.onoff_btn.configure(state="disabled", text="Turn on")
+            self._set_status("stopped")
+        state = "disabled" if running else "normal"
+        for widget in (self.refresh_btn, *self.radios):
+            widget.configure(state=state)
+        for row in self.rows.values():
+            row.enabled = not running
+
+    def _log(self, text):
+        self.log_box.configure(state="normal")
+        self.log_box.insert("end", text + "\n")
+        self.log_box.see("end")
+        self.log_box.configure(state="disabled")
+
+    def _poll(self):
+        while not self.log_queue.empty():
+            msg = self.log_queue.get_nowait()
+            self._log(msg)
+            if msg.startswith("[notes] ON"):
+                self._set_status("notes_on", f" {self.editor_name}")
+                self.onoff_btn.configure(text="Turn off")
+            elif msg.startswith("[notes] OFF"):
+                self._set_status("notes_off")
+                self.onoff_btn.configure(text="Turn on")
+        if self.thread is not None and not self.thread.is_alive():
+            self.thread = None
+            self._set_running_ui(False)
+        self.after(100, self._poll)
+
+    def shutdown(self):
+        if self.running():
+            self.notes.stop()
+            self.thread.join(timeout=1)
+
+
 class App(ctk.CTk):
     def __init__(self):
         super().__init__()
@@ -347,7 +523,7 @@ class App(ctk.CTk):
         self.geometry("780x680")
         self.minsize(680, 580)
 
-        self.header = Header(self)
+        self.header = Header(self, on_mode=self.switch_mode)
         self.header.pack(fill="x", padx=20, pady=(16, 10))
         ctk.CTkFrame(self, height=1, fg_color=("#e5e7eb", "#34373d")).pack(fill="x", padx=20)
 
@@ -355,22 +531,41 @@ class App(ctk.CTk):
         self.body.pack(fill="both", expand=True, padx=20, pady=(14, 18))
         self.device_page = DevicePage(self.body, self)
         self.program_page = ProgramPage(self.body, self)
+        self.notes_page = NotesPage(self.body, self)
+        self.lock_page = self.device_page   # which Lock step was showing last
         self.show_devices()
         self.protocol("WM_DELETE_WINDOW", self._on_close)
 
+    def _show(self, page):
+        for p in (self.device_page, self.program_page, self.notes_page):
+            if p is not page:
+                p.pack_forget()
+        page.pack(fill="both", expand=True)
+
+    def switch_mode(self, mode):
+        if mode == "Notes":
+            self.header.show_steps(False)
+            self._show(self.notes_page)
+            if not self.notes_page.running():
+                self.notes_page.refresh()
+        else:
+            self.header.show_steps(True)
+            self._show(self.lock_page)
+
     def show_devices(self):
-        self.program_page.pack_forget()
-        self.device_page.pack(fill="both", expand=True)
+        self.lock_page = self.device_page
+        self._show(self.device_page)
         self.header.set_step(0)
 
     def show_programs(self, devices):
-        self.device_page.pack_forget()
+        self.lock_page = self.program_page
         self.program_page.set_hardware(devices)
-        self.program_page.pack(fill="both", expand=True)
+        self._show(self.program_page)
         self.header.set_step(1)
 
     def _on_close(self):
         self.program_page.shutdown()
+        self.notes_page.shutdown()
         self.destroy()
 
 

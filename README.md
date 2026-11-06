@@ -15,6 +15,8 @@ py gui.py       # or: pyw gui.py  (no console window)
 
 Selected keyboards → keys are locked to the program; selected mice → cursor is confined to its window.
 
+The **Notes** tab at the top switches to notes mode (see below).
+
 ## Usage
 
 Run from inside this folder:
@@ -47,6 +49,35 @@ Windows sends keyboard input only to the foreground window, so hwlock:
 3. Optionally **confines the mouse** to the window (`--clip-mouse`).
 
 If the game closes, hwlock waits and re-locks once it's back.
+
+## Notes mode: type into an editor in the background
+
+Keep typing into Notepad while you click around a browser or other windows to look things up.
+
+GUI: **Notes** tab → pick the editor → **Start**. Or from the command line:
+
+```
+py __main__.py notes                          # Notepad
+py __main__.py notes notepad.exe --title todo.txt
+py __main__.py notes notepad++.exe --on       # start with notes mode already on
+```
+
+| Hotkey           | Action                                         |
+|------------------|------------------------------------------------|
+| Ctrl+Shift+F10   | notes mode on / off (a sound plays each time)  |
+| Ctrl+Shift+F12   | quit                                           |
+
+While it's on, every key goes to the editor, even though another window is in front. The mouse
+works normally everywhere. Supported: letters and symbols (including AltGr), Enter, Tab,
+Backspace, Delete, arrow keys, Home/End, Page Up/Down, and Ctrl+A / C / X / V / Z / Y.
+
+Limitations:
+- Works with Windows 11 Notepad, classic Notepad, Notepad++ and WordPad. **Not** with VS Code,
+  Discord or other browser-based apps, which ignore keys sent to them in the background.
+- While it's on, keyboard shortcuts in other windows (like Ctrl+F in the browser) don't work.
+- Shift+arrow selection and Ctrl+arrow word jumps aren't supported (the editor checks its own
+  Shift/Ctrl state, which isn't held).
+- If the editor runs as administrator, hwlock must run as administrator too.
 
 ## Notes
 

@@ -3,6 +3,7 @@
     python -m hwlock devices [--all] [-v]
     python -m hwlock windows
     python -m hwlock lock Trackmania.exe [--clip-mouse] [--block win,alttab] [--no-refocus]
+    python -m hwlock notes [notepad.exe] [--title file.txt] [--on]
 """
 import argparse
 import sys
@@ -47,6 +48,11 @@ def cmd_lock(args):
     ).run()
 
 
+def cmd_notes(args):
+    from notes import NotesMode
+    NotesMode(process=args.process, title=args.title, start_on=args.on, sound=not args.quiet).run()
+
+
 def main(argv=None):
     p = argparse.ArgumentParser(prog="hwlock", description="Manage input devices and lock them to an application.")
     sub = p.add_subparsers(dest="cmd", required=True)
@@ -70,6 +76,14 @@ def main(argv=None):
     lk.add_argument("--clip-mouse", action="store_true", help="confine the mouse cursor to the app window")
     lk.add_argument("--no-refocus", action="store_true", help="don't pull the app back to the front when it loses focus")
     lk.set_defaults(func=cmd_lock)
+
+    nt = sub.add_parser("notes", help="type into a text editor while other windows are in front",
+                        epilog="Hotkeys: Ctrl+Shift+F10 notes mode on/off, Ctrl+Shift+F12 quit.")
+    nt.add_argument("process", nargs="?", default="notepad.exe", help="editor process (default: notepad.exe)")
+    nt.add_argument("--title", help="match a window title substring (e.g. the file name)")
+    nt.add_argument("--on", action="store_true", help="start with notes mode already on")
+    nt.add_argument("--quiet", action="store_true", help="no sound when notes mode turns on/off")
+    nt.set_defaults(func=cmd_notes)
 
     args = p.parse_args(argv)
     if args.cmd == "lock" and not (args.process or args.title):

@@ -17,12 +17,22 @@ HC_ACTION = 0
 WM_KEYDOWN, WM_KEYUP, WM_SYSKEYDOWN, WM_SYSKEYUP = 0x0100, 0x0101, 0x0104, 0x0105
 WM_TIMER = 0x0113
 WM_QUIT = 0x0012
+LLKHF_EXTENDED = 0x01
 LLKHF_INJECTED = 0x10
 LLKHF_ALTDOWN = 0x20
 
+# messages sent to edit controls (notes mode)
+WM_CHAR = 0x0102
+WM_CUT, WM_COPY, WM_PASTE, WM_UNDO = 0x0300, 0x0301, 0x0302, 0x0304
+EM_SETSEL = 0x00B1
+EM_REDO = 0x0454          # RichEdit only
+SCI_REDO = 2011           # Scintilla (Notepad++)
+
 VK_TAB, VK_SHIFT, VK_CONTROL, VK_MENU, VK_ESCAPE = 0x09, 0x10, 0x11, 0x12, 0x1B
 VK_LWIN, VK_RWIN, VK_APPS = 0x5B, 0x5C, 0x5D
-VK_F11, VK_F12 = 0x7A, 0x7B
+VK_F10, VK_F11, VK_F12 = 0x79, 0x7A, 0x7B
+VK_CAPITAL = 0x14
+VK_LSHIFT, VK_RSHIFT, VK_LCONTROL, VK_RCONTROL, VK_LMENU, VK_RMENU = 0xA0, 0xA1, 0xA2, 0xA3, 0xA4, 0xA5
 KEYEVENTF_KEYUP = 0x0002
 
 SW_RESTORE = 9
@@ -99,6 +109,12 @@ GetAsyncKeyState = _proto(user32, "GetAsyncKeyState", wt.SHORT, ctypes.c_int)
 keybd_event = _proto(user32, "keybd_event", None, wt.BYTE, wt.BYTE, wt.DWORD, ULONG_PTR)
 
 EnumWindows = _proto(user32, "EnumWindows", wt.BOOL, WNDENUMPROC, wt.LPARAM)
+EnumChildWindows = _proto(user32, "EnumChildWindows", wt.BOOL, wt.HWND, WNDENUMPROC, wt.LPARAM)
+SendNotifyMessageW = _proto(user32, "SendNotifyMessageW", wt.BOOL, wt.HWND, wt.UINT, wt.WPARAM, wt.LPARAM)
+GetKeyState = _proto(user32, "GetKeyState", wt.SHORT, ctypes.c_int)
+GetKeyboardLayout = _proto(user32, "GetKeyboardLayout", wt.HKL, wt.DWORD)
+ToUnicodeEx = _proto(user32, "ToUnicodeEx", ctypes.c_int, wt.UINT, wt.UINT, ctypes.POINTER(ctypes.c_ubyte),
+                     wt.LPWSTR, ctypes.c_int, wt.UINT, wt.HKL)
 IsWindow = _proto(user32, "IsWindow", wt.BOOL, wt.HWND)
 IsWindowVisible = _proto(user32, "IsWindowVisible", wt.BOOL, wt.HWND)
 IsIconic = _proto(user32, "IsIconic", wt.BOOL, wt.HWND)
