@@ -44,10 +44,21 @@ class ClickRow(ctk.CTkFrame):
         self.enabled = True
 
     def wire(self):
-        for widget in (self, *self.winfo_children()):
-            widget.bind("<Button-1>", lambda _e: self.enabled and self.on_click(), add="+")
+        """Bind click/hover on the row and every CTk widget nested inside it.
+
+        Checkboxes/radios are skipped for clicks: they already toggle themselves, and
+        also running on_click would toggle them straight back (net: no change)."""
+        def walk(widget):
+            if not isinstance(widget, ctk.CTkBaseClass):
+                return   # tkinter internals (canvases/labels) are bound via their CTk owner
+            if not isinstance(widget, (ctk.CTkCheckBox, ctk.CTkRadioButton)):
+                widget.bind("<Button-1>", lambda _e: self.enabled and self.on_click(), add="+")
             widget.bind("<Enter>", lambda _e: self._paint(hover=True), add="+")
             widget.bind("<Leave>", lambda _e: self._paint(hover=False), add="+")
+            if isinstance(widget, ctk.CTkFrame):
+                for child in widget.winfo_children():
+                    walk(child)
+        walk(self)
 
     def set_active(self, active):
         self.active = active
@@ -110,7 +121,7 @@ class DevicePage(ctk.CTkFrame):
         self.rows.clear()
         devices = list_devices()
         if not devices:
-            ctk.CTkLabel(self.list, text="No keyboards or mice found.", text_color=MUTED).pack(pady=20)
+            ctk.CTkLabel(self.list, text="No external keyboards or mice found.", text_color=MUTED).pack(pady=20)
         for d in devices:
             var = tk.BooleanVar()
             row = ClickRow(self.list, on_click=lambda v=var: (v.set(not v.get()), self._changed()))

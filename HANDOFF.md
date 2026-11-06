@@ -22,7 +22,15 @@ application (e.g. lock the keyboard to Trackmania so it always receives input).
 ## Known limitation
 Windows can't route individual keyboards separately. Selecting any keyboard locks *all*
 keyboard input; selecting any mouse confines the cursor for all mice. True per-device
-locking needs a filter driver such as Interception. That's a possible next step.
+locking needs a filter driver such as Interception. That's a possible next step
+(an Interception integration was tried on 2026-11-06 and removed at the user's request).
+
+## Device listing
+- Only external (USB/Bluetooth) devices by default; `devices --all` for everything.
+- Interfaces of one physical device are merged by container ID; the USB boot protocol
+  (Prot_01 keyboard / Prot_02 mouse) decides whether it's shown as a keyboard or a mouse.
+- Logitech Bolt receiver (046D:C548) shows as both, correctly; paired devices behind it would
+  need Logitech HID++ over its vendor interface (MI_02). Not done.
 
 ## Not yet tested
 Refocusing against Trackmania itself (only tested with Notepad, refocus off).

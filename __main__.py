@@ -13,7 +13,7 @@ from windows import list_windows
 
 
 def cmd_devices(args):
-    devices = list_devices(include_hid=args.all)
+    devices = list_devices(include_hid=args.all, merge=not args.raw, external_only=not args.all)
     if not devices:
         print("No input devices found.")
         return
@@ -22,7 +22,8 @@ def cmd_devices(args):
         vidpid = f"{d.vid}:{d.pid}" if d.vid else "-"
         print(f"{d.kind:<9} {d.connection:<10} {vidpid:<10} {d.name[:40]:<40} {d.manufacturer}")
         if args.verbose:
-            print(f"{'':<31} {d.instance_id}")
+            for iid in d.interfaces or [d.instance_id]:
+                print(f"{'':<31} {iid}")
 
 
 def cmd_windows(_args):
@@ -51,8 +52,9 @@ def main(argv=None):
     sub = p.add_subparsers(dest="cmd", required=True)
 
     d = sub.add_parser("devices", help="list connected keyboards and mice")
-    d.add_argument("--all", action="store_true", help="also list other HID devices (controllers, headsets, ...)")
+    d.add_argument("--all", action="store_true", help="also list built-in/virtual devices and other HID devices (controllers, headsets, ...)")
     d.add_argument("-v", "--verbose", action="store_true", help="show device instance IDs")
+    d.add_argument("--raw", action="store_true", help="don't merge interfaces of the same physical device")
     d.set_defaults(func=cmd_devices)
 
     wn = sub.add_parser("windows", help="list running applications you can lock to")

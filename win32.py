@@ -36,6 +36,8 @@ RIDI_DEVICENAME = 0x20000007
 CR_SUCCESS = 0
 CR_BUFFER_SMALL = 0x1A
 DEVPROP_TYPE_STRING = 0x12
+DEVPROP_TYPE_GUID = 0x0D
+DEVPROP_TYPE_STRING_LIST = 0x2012
 
 # --- structures ------------------------------------------------------------
 class KBDLLHOOKSTRUCT(ctypes.Structure):
@@ -68,6 +70,8 @@ DEVPKEY_Device_DeviceDesc = devpropkey("a45c254e-df1c-4efd-8020-67d146a850e0", 2
 DEVPKEY_Device_Manufacturer = devpropkey("a45c254e-df1c-4efd-8020-67d146a850e0", 13)
 DEVPKEY_Device_FriendlyName = devpropkey("a45c254e-df1c-4efd-8020-67d146a850e0", 14)
 DEVPKEY_Device_BusReportedDeviceDesc = devpropkey("540b947e-8b40-45bc-a8a2-6a0b894cbda2", 4)
+DEVPKEY_Device_CompatibleIds = devpropkey("a45c254e-df1c-4efd-8020-67d146a850e0", 4)
+DEVPKEY_Device_ContainerId = devpropkey("8c7ed206-3f8a-4827-b3ab-ae9e1faefc6c", 2)
 
 # --- function prototypes ---------------------------------------------------
 HOOKPROC = ctypes.WINFUNCTYPE(LRESULT, ctypes.c_int, wt.WPARAM, wt.LPARAM)
