@@ -10,6 +10,7 @@ import ctypes
 import os
 import queue
 import threading
+import time
 import tkinter as tk
 from tkinter import messagebox
 
@@ -188,6 +189,7 @@ class ProgramPage(ctk.CTkFrame):
         self.lock_thread = None
         self.paused = False
         self.log_queue = queue.Queue()
+        self._timer_end: float | None = None   # monotonic deadline; None = no timer
 
         ctk.CTkLabel(self, text="Choose a program", font=font(17, "bold")).pack(anchor="w")
         self.summary = ctk.CTkFrame(self, fg_color="transparent")
@@ -212,6 +214,28 @@ class ProgramPage(ctk.CTkFrame):
             box.pack(side="left", padx=(0, 12))
             self.block_vars[name] = var
             self.key_boxes.append(box)
+
+        # ----- timer row -----
+        timer_row = ctk.CTkFrame(opts, fg_color="transparent")
+        timer_row.pack(anchor="w", padx=14, pady=(0, 12))
+        self.timer_var = tk.BooleanVar(value=False)
+        ctk.CTkCheckBox(timer_row, text="Auto-unlock after", variable=self.timer_var,
+                        width=20, font=font(13), checkbox_width=20, checkbox_height=20,
+                        command=self._timer_toggled).pack(side="left", padx=(0, 8))
+        self.hours_var = tk.StringVar(value="0")
+        self.mins_var  = tk.StringVar(value="25")
+        vcmd = (self.register(lambda s: s.isdigit() and len(s) <= 3), "%P")
+        self._h_spin = ctk.CTkEntry(timer_row, textvariable=self.hours_var, width=52, font=font(13),
+                                    justify="center")
+        self._h_spin.configure(validate="key", validatecommand=vcmd)
+        self._h_spin.pack(side="left")
+        ctk.CTkLabel(timer_row, text="h", font=font(13), text_color=MUTED).pack(side="left", padx=(2, 8))
+        self._m_spin = ctk.CTkEntry(timer_row, textvariable=self.mins_var, width=52, font=font(13),
+                                    justify="center")
+        self._m_spin.configure(validate="key", validatecommand=vcmd)
+        self._m_spin.pack(side="left")
+        ctk.CTkLabel(timer_row, text="min", font=font(13), text_color=MUTED).pack(side="left", padx=(2, 0))
+        self._timer_toggled()   # set initial enabled/disabled state
 
         bar = ctk.CTkFrame(self, fg_color="transparent")
         bar.pack(fill="x", pady=(12, 0))
@@ -290,6 +314,23 @@ class ProgramPage(ctk.CTkFrame):
     def locked(self):
         return self.lock_thread is not None and self.lock_thread.is_alive()
 
+    def _timer_toggled(self):
+        """Enable/disable the hour and minute spinboxes based on the timer checkbox."""
+        state = "normal" if self.timer_var.get() else "disabled"
+        self._h_spin.configure(state=state)
+        self._m_spin.configure(state=state)
+
+    def _timer_seconds(self):
+        """Return the timer duration in seconds, or 0 if the timer is disabled / zero."""
+        if not self.timer_var.get():
+            return 0
+        try:
+            h = max(0, int(self.hours_var.get() or 0))
+            m = max(0, int(self.mins_var.get() or 0))
+        except ValueError:
+            return 0
+        return h * 3600 + m * 60
+
     def toggle_lock(self):
         if self.locked():
             self.lock.stop()
@@ -297,6 +338,10 @@ class ProgramPage(ctk.CTkFrame):
         program = self.programs.get(self.choice.get())
         if not program:
             messagebox.showwarning("hwlock", "Choose a program from the list.")
+            return
+        duration = self._timer_seconds()
+        if self.timer_var.get() and duration == 0:
+            messagebox.showwarning("hwlock", "Set a timer duration greater than zero, or uncheck the timer.")
             return
         has_keyboard = any(d.kind == "keyboard" for d in self.selected)
         has_mouse = any(d.kind == "mouse" for d in self.selected)
@@ -307,7 +352,14 @@ class ProgramPage(ctk.CTkFrame):
         self.lock_thread = threading.Thread(target=self._run_lock, daemon=True)
         self.lock_thread.start()
 
-        self._log(f"Locking {', '.join(d.name for d in self.selected)} → {program.exe}")
+        if duration:
+            self._timer_end = time.monotonic() + duration
+            h, m, s = duration // 3600, (duration % 3600) // 60, duration % 60
+            self._log(f"Locking {', '.join(d.name for d in self.selected)} → {program.exe}  "
+                      f"(timer: {h:02d}:{m:02d}:{s:02d})")
+        else:
+            self._timer_end = None
+            self._log(f"Locking {', '.join(d.name for d in self.selected)} → {program.exe}")
         self._set_locked_ui(True, program.exe)
         self.app.hide_to_tray()
 
@@ -333,6 +385,11 @@ class ProgramPage(ctk.CTkFrame):
             widget.configure(state=state)
         for row in self.rows.values():
             row.enabled = not locked
+        # Freeze the timer controls while a lock is active
+        self._timer_toggled() if not locked else None
+        for w in (self._h_spin, self._m_spin):
+            if locked:
+                w.configure(state="disabled")
 
     def _log(self, text):
         self.log_box.configure(state="normal")
@@ -350,9 +407,24 @@ class ProgramPage(ctk.CTkFrame):
             elif "RESUMED" in msg:
                 self.paused = False
                 self._set_status("locked", f" to {self.lock.process}")
+        # Countdown timer: tick every poll cycle and auto-stop when it expires.
+        if self.locked() and self._timer_end is not None:
+            remaining = self._timer_end - time.monotonic()
+            if remaining <= 0:
+                self._log("[timer] Time's up — unlocking.")
+                self._timer_end = None
+                self.lock.stop()
+            else:
+                h = int(remaining) // 3600
+                m = (int(remaining) % 3600) // 60
+                s = int(remaining) % 60
+                countdown = f" ({h:02d}:{m:02d}:{s:02d})"
+                if not self.paused:
+                    self._set_status("locked", f" to {self.lock.process}{countdown}")
         if self.lock_thread is not None and not self.lock_thread.is_alive():
             self.lock_thread = None
             self.paused = False
+            self._timer_end = None
             self._set_locked_ui(False)
             self.app.show_again()
         self.after(100, self._poll)
