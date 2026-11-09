@@ -1,3 +1,10 @@
-customtkinter>=5.2
-pystray>=0.19
-pillow>=10
+# GUI Framework
+customtkinter>=5.2.0
+
+# System Tray Icon Support
+pystray>=0.19.5
+Pillow>=10.0.0
+
+# Supporting dependencies (required by customtkinter)
+darkdetect>=0.8.0
+packaging>=20.0
