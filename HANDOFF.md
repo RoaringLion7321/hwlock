@@ -19,7 +19,9 @@ application (e.g. lock the keyboard to Trackmania so it always receives input).
 - `__main__.py`: CLI (`py __main__.py devices | windows | lock <exe> | notes [exe]`).
 - `gui.py`: CustomTkinter GUI with Lock / Notes tabs. Lock: 1. tick hardware → Select,
   2. pick a running program → Lock/Unlock. Notes: pick an editor → Start.
-- `ARCHITECTURE.md`: how every file works.
+- `tray.py`: system tray icon (pystray + Pillow). The GUI hides into the tray when a lock or notes
+  mode starts; the tray menu can show the window, unlock, toggle/stop notes, quit.
+- `ARCHITECTURE.md`: how every file works. `ABSTRACT.md`: project abstract.
 - Imports are flat (`from devices import ...`), so run everything from inside this folder.
 - Python: use `py` (3.13). The Microsoft Store `python` couldn't see some folders.
 
@@ -42,7 +44,7 @@ If the game runs as admin, hwlock must run as admin too.
 
 ## Ideas for next steps
 - Per-device locking via the Interception driver
-- System tray icon / auto-lock when the game starts
+- Auto-lock when the game starts (the tray icon part of this idea is done)
 - Saved profiles per game
 - **Notes mode**: Idea A is implemented (`notes.py`); Idea B (two keyboards) isn't started
 
@@ -57,6 +59,11 @@ to look things up. The mouse stays free; only the keyboard is redirected.
 - Differences from the plan below: keys go out with `SendNotifyMessage` (posting caused
   double characters via the editor's TranslateMessage); a built-in notes window wasn't added.
 - Known gaps: Shift+arrow selection, Ctrl+arrow word jumps.
+- Once (2026-11-06, right after the tray icon was added) the user reported Ctrl+Shift+F10 didn't
+  turn notes mode *off*. It couldn't be reproduced (an injected-key test of the real hook passed
+  on/type/off/on, with and without the tray) and later worked again for the user. If it comes
+  back, suspect Windows silently removing the low-level hook (LowLevelHooksTimeout): the fix
+  would be to detect that and reinstall the hook.
 - User confirmed it works with real keys (2026-11-06). Letting any program be picked (keys to
   its focused control via `GetGUIThreadInfo`) was tried and removed at the user's request.
 

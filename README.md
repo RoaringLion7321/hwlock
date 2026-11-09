@@ -1,7 +1,8 @@
 # hwlock
 
 Manage connected input hardware on Windows and lock keyboard/mouse input to one application.
-Pure Python + ctypes (Python 3.9+). The command line has no dependencies; the GUI uses CustomTkinter.
+Pure Python + ctypes (Python 3.9+). The command line has no dependencies; the GUI uses CustomTkinter,
+plus pystray and Pillow for its system tray icon.
 
 ## GUI
 
@@ -17,9 +18,18 @@ Selected keyboards → keys are locked to the program; selected mice → cursor 
 
 The **Notes** tab at the top switches to notes mode (see below).
 
-When a lock or notes mode starts, the window minimizes to the taskbar. Click hwlock's taskbar
-button to bring it back (e.g. to press Unlock / Stop). If the lock or notes mode is ended with
-Ctrl+Shift+F12, the window comes back on its own.
+**System tray:** hwlock has a padlock icon in the system tray (next to the clock) for as long as it
+runs. Its colour shows the state: blue = idle, green = locked / typing into notes, amber = lock
+paused / notes ready. Hover it for details.
+
+- When a lock or notes mode starts, the window hides into the tray.
+- The window's close button (X) also hides it into the tray; hwlock keeps running. To really
+  quit, use **Quit hwlock** in the tray menu.
+- Click the tray icon to bring the window back. Right-click it for **Unlock**, **Notes mode on/off**,
+  **Stop notes mode** and **Quit hwlock**.
+- If the lock or notes mode is ended with Ctrl+Shift+F12, the window comes back on its own.
+
+(If Windows hides the icon in the overflow ^ menu, drag it onto the taskbar to keep it visible.)
 
 ## Usage
 

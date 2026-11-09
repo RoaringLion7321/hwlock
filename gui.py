@@ -543,7 +543,7 @@ class App(ctk.CTk):
         self.notes_page = NotesPage(self.body, self)
         self.lock_page = self.device_page   # which Lock step was showing last
         self.show_devices()
-        self.protocol("WM_DELETE_WINDOW", self._on_close)
+        self.protocol("WM_DELETE_WINDOW", self._on_window_x)
 
         # System tray icon, there for as long as hwlock runs.
         self.tray, self._last_tray_status = None, None
@@ -643,7 +643,16 @@ class App(ctk.CTk):
                              notes_running=notes_running, notes_on=notes_on)
         self.after(150, self._tray_poll)
 
+    def _on_window_x(self):
+        """The window's close button hides hwlock to the tray (it keeps running there).
+        Quit for real with "Quit hwlock" in the tray menu. Without a tray icon, it quits."""
+        if self.tray:
+            self.withdraw()
+        else:
+            self._on_close()
+
     def _on_close(self):
+        """Quit hwlock: stop any lock / notes mode, remove the tray icon, close the window."""
         self.program_page.shutdown()
         self.notes_page.shutdown()
         if self.tray:

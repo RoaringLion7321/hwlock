@@ -272,11 +272,17 @@ Built with CustomTkinter (a modern-looking layer over Python's standard Tkinter)
 ### Structure
 - **`App`**: the main window. It holds a `Header` and three pages, and shows one at a time with
   `_show()` (`pack()` the page, `pack_forget()` the others). `switch_mode` handles the Lock/Notes
-  tabs and remembers which Lock step you were on (`lock_page`). Closing the window stops a
-  running lock and notes mode first (`_on_close`).
-  `hide_to_taskbar()` minimizes the window when a lock or notes mode starts, and `show_again()`
-  restores it when the pages' `_poll()` sees that it has ended. At startup the process sets its
-  own taskbar ID (`SetCurrentProcessExplicitAppUserModelID`), so hwlock gets its own taskbar
+  tabs and remembers which Lock step you were on (`lock_page`). The window's X button
+  (`_on_window_x`) only hides the window into the tray. Quitting (tray menu → Quit, or X when
+  there's no tray icon) goes through `_on_close`, which stops a running lock and notes mode,
+  removes the tray icon and closes the window.
+  `hide_to_tray()` hides the window (`withdraw`) when a lock or notes mode starts, and
+  `show_again()` restores it when the pages' `_poll()` sees that it has ended. App also owns the
+  tray icon (see tray.py): `_tray_poll()` runs every 150 ms, carries out menu clicks queued by
+  the tray thread, and works out the current state and tooltip (`_tray_status`), updating the
+  icon only when they change. If pystray/Pillow are missing, the GUI still runs, logs that
+  there's no tray icon, and minimizes instead of hiding. At startup the process also sets its
+  own taskbar ID (`SetCurrentProcessExplicitAppUserModelID`), so the window gets its own taskbar
   button instead of being grouped under Python.
 - **`Header`**: the title, the **Lock / Notes** tab switch (a `CTkSegmentedButton`) and the
   "1 Hardware / 2 Program" step chips. `set_step` highlights a chip; `show_steps` hides them
@@ -317,6 +323,23 @@ underneath a running lock.
 
 ---
 
+## tray.py: system tray icon (`Tray`)
+
+Uses **pystray** (tray icons) and **Pillow** (to draw the icon image).
+
+- `make_icon(color)` draws a 64×64 padlock on a rounded square. Three versions are made up
+  front: blue (idle), green (locked / notes on), amber (lock paused / notes ready).
+- The menu: **Show hwlock** (also what a left click does, `default=True`), then **Unlock**,
+  **Notes mode on/off** and **Stop notes mode**, which only appear when they apply (`visible=`
+  callbacks reading `locked` / `notes_running` / `notes_on`), then **Quit hwlock**.
+- pystray runs the icon on its own daemon thread (`start()`). Tkinter may only be used from the
+  GUI thread, so menu clicks don't touch the GUI. They put a command string on
+  `Tray.commands`, and the GUI's `_tray_poll()` carries them out.
+- `update()` (called from the GUI thread) swaps the icon image, sets the hover tooltip (max 128
+  characters on Windows) and refreshes the menu.
+
+---
+
 ## \_\_main\_\_.py: command line
 
 `argparse` with four subcommands, each a thin wrapper:
@@ -335,7 +358,8 @@ underneath a running lock.
 | File | Purpose |
 |---|---|
 | `__init__.py` | package docstring and `__version__` |
-| `requirements.txt` | `customtkinter` (GUI only; the CLI needs nothing) |
+| `requirements.txt` | `customtkinter`, `pystray`, `pillow` (GUI only; the CLI needs nothing) |
+| `ABSTRACT.md` | project abstract: overview, purpose, problem, solution |
 | `README.md` | setup and usage |
 | `HANDOFF.md` | project status, limitations and ideas for the next session |
 | `test.txt` | empty, not used by the code |
