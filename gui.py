@@ -380,7 +380,8 @@ class NotesPage(ctk.CTkFrame):
 
         ctk.CTkLabel(self, text="Notes mode", font=font(17, "bold")).pack(anchor="w")
         ctk.CTkLabel(self, text="Type into a text editor while you click around other windows. "
-                                "Pick the editor, press Start, then use Ctrl+Shift+F10 to send your typing to it.",
+                                "Pick the editor and press Start — notes mode turns on automatically. "
+                                "Use the Turn on / Turn off button (or Ctrl+Shift+F10) to toggle it.",
                      font=font(13), text_color=MUTED, wraplength=700, justify="left",
                      anchor="w").pack(anchor="w", pady=(0, 10))
 
@@ -462,11 +463,12 @@ class NotesPage(ctk.CTkFrame):
             messagebox.showwarning("hwlock", "Choose a text editor from the list.")
             return
         self.editor_name = editor.exe
-        self.notes = NotesMode(hwnd=editor.hwnd, log=self.log_queue.put)
+        self.notes = NotesMode(hwnd=editor.hwnd, start_on=True, log=self.log_queue.put)
         self.thread = threading.Thread(target=self._run, daemon=True)
         self.thread.start()
         self._set_running_ui(True)
-        self.app.hide_to_tray()
+        # Hide the window so the user can click around other windows while typing into the editor. The tray icon (always there while hwlock runs) brings it back.
+        # self.app.hide_to_tray()
 
     def toggle_notes(self):
         if self.running():
