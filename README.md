@@ -178,6 +178,7 @@ hwlock/
 
 ## Important System Notes
 
+- **This only works on Windows OS**
 - **Administrator Privileges:** If the game or target application is running as Administrator (elevated), Windows security (UIPI) prevents standard-user processes from sending input or refocusing it. Run hwlock as Administrator to match permissions.
 - **DPI Awareness:** hwlock automatically enables Windows per-monitor DPI awareness to ensure precise mouse cursor clipping across multi-monitor setups.
 - **Physical Keyboard Isolation:** In pure Win32 user-space, Windows routes all connected keyboards to the active foreground window. Isolating hardware at the driver level (e.g. keyboard A to Game, keyboard B to Desktop) requires a kernel filter driver such as Interception; device discovery in `devices.py` provides the hardware enumeration base for this workflow.
