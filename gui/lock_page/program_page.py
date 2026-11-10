@@ -12,8 +12,8 @@ from tkinter import messagebox
 
 import customtkinter as ctk
 
-from lock import BLOCKABLE, DEFAULT_BLOCK, FocusLock
-from windows import list_windows
+from core.lock import BLOCKABLE, DEFAULT_BLOCK, FocusLock
+from core.windows import list_windows
 from gui.theme import GREEN, GREEN_HOVER, MUTED, RED, RED_HOVER, STATUS, KEY_LABELS, font
 from gui.widgets import ClickRow
 

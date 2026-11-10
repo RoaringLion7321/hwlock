@@ -4,7 +4,7 @@ from tkinter import messagebox
 
 import customtkinter as ctk
 
-from devices import list_devices
+from core.devices import list_devices
 from gui.theme import BADGE, MUTED, font
 from gui.widgets import ClickRow
 

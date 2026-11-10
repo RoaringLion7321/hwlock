@@ -4,7 +4,7 @@ import os
 from dataclasses import dataclass
 from ctypes import wintypes as wt
 
-import win32 as w
+from core import win32 as w
 
 
 @dataclass

@@ -12,8 +12,8 @@ from tkinter import messagebox
 
 import customtkinter as ctk
 
-from notes import NotesMode, find_text_box
-from windows import list_windows
+from core.notes import NotesMode, find_text_box
+from core.windows import list_windows
 from gui.theme import GREEN, GREEN_HOVER, MUTED, RED, RED_HOVER, STATUS, font
 from gui.widgets import ClickRow
 

@@ -4,12 +4,11 @@ Owns the header, the body frame that hosts the three pages, the page-switching
 logic, the system-tray plumbing, and clean shutdown.
 """
 import ctypes
-
 import customtkinter as ctk
-
-from gui.header              import Header
-from gui.lock_page           import DevicePage, ProgramPage
-from gui.notes_page          import NotesPage
+from gui.header import Header
+# from gui.home_page import HomePage
+from gui.notes_page import NotesPage
+from gui.lock_page import DevicePage, ProgramPage
 
 
 class App(ctk.CTk):
@@ -32,12 +31,12 @@ class App(ctk.CTk):
         self.notes_page   = NotesPage(self.body, self)
         self.lock_page    = self.device_page   # which Lock step was last visible
         self.show_devices()
-        self.protocol("WM_DELETE_WINDOW", self._on_close)
+        self.protocol("WM_DELETE_WINDOW", self._on_window_x)  # close button hides to tray (or quits if no tray)
 
         # ---- system tray (optional — needs pystray + Pillow) ----
         self.tray, self._last_tray_status = None, None
         try:
-            from tray import Tray
+            from core.tray import Tray
             self.tray = Tray()
             self.tray.start()
             self.after(150, self._tray_poll)
@@ -153,7 +152,17 @@ class App(ctk.CTk):
     # Shutdown
     # ------------------------------------------------------------------
 
+    def _on_window_x(self):
+        """The window's close button hides hwlock to the tray (it keeps running there).
+        Quit for real with "Quit hwlock" in the tray menu. Without a tray icon, it quits."""
+        if self.tray:
+            self.withdraw()
+        else:
+            self._on_close()
+
     def _on_close(self):
+        """Quit hwlock: stop any lock / notes mode,
+          remove the tray icon, close the window."""
         self.program_page.shutdown()
         self.notes_page.shutdown()
         if self.tray:

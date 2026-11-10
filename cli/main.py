@@ -8,9 +8,9 @@
 import argparse
 import sys
 
-from devices import list_devices
-from lock import BLOCKABLE, DEFAULT_BLOCK, FocusLock
-from windows import list_windows
+from core.devices import list_devices
+from core.lock import BLOCKABLE, DEFAULT_BLOCK, FocusLock
+from core.windows import list_windows
 
 
 def cmd_devices(args):
@@ -49,7 +49,7 @@ def cmd_lock(args):
 
 
 def cmd_notes(args):
-    from notes import NotesMode
+    from core.notes import NotesMode
     NotesMode(process=args.process, title=args.title, start_on=args.on, sound=not args.quiet).run()
 
 

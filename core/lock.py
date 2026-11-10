@@ -14,8 +14,8 @@ import ctypes
 import time
 from ctypes import wintypes as wt
 
-import win32 as w
-from windows import find_window, window_pid
+from core import win32 as w
+from core.windows import find_window, window_pid
 
 BLOCKABLE = {
     "win": "Windows keys (Start menu, Win+D, Win+Tab, ...)",

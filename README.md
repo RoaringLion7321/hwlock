@@ -30,9 +30,9 @@ python run.py
 
 > **Tip:** Use `pythonw run.py` (or `pyw run.py`) to launch without a persistent console window.
 
-You can also launch via the package entry point:
+You can also launch via the CLI module:
 ```powershell
-python __main__.py gui
+python -m cli gui
 ```
 
 ---
@@ -117,40 +117,53 @@ hwlock includes a full command-line interface:
 
 ```powershell
 # List input hardware (shows connection types: USB, Bluetooth, built-in)
-python __main__.py devices
+python run.py devices
 
 # Detailed device view (including instance IDs and HID collections)
-python __main__.py devices --all -v
+python run.py devices --all -v
 
 # List open application windows available to lock
-python __main__.py windows
+python run.py windows
 
 # Lock keyboard input to a specific process
-python __main__.py lock Trackmania.exe
+python run.py lock Trackmania.exe
 
 # Lock with mouse confinement to window borders
-python __main__.py lock Trackmania.exe --clip-mouse
+python run.py lock Trackmania.exe --clip-mouse
 
 # Lock matching by window title with custom key blocking
-python __main__.py lock --title "Trackmania" --block win,alttab,apps
+python run.py lock --title "Trackmania" --block win,alttab,apps
 
 # Start background Notes Mode directly to an editor
-python __main__.py notes notepad.exe --on
+python run.py notes notepad.exe --on
 ```
+
+*(You can also invoke directly via `python -m cli <command>`)*
 
 ---
 
 ## Project Structure
 
-The project is organized into modular files and packages:
+The project has a clean root directory with all code modularized into packages:
 
 ```text
 hwlock/
-├── run.py                 # Primary GUI launcher script
-├── __main__.py            # CLI entry point and alternative runner
+├── run.py                 # Primary entry point (runs GUI or CLI commands)
 ├── requirements.txt       # Python package dependencies
+├── test.txt               # Test / scratch file
+├── .gitignore             # Git ignore configuration
+├── README.md              # Documentation
 │
-├── gui/                   # GUI package (CustomTkinter)
+├── core/                  # Core Win32 & input engine
+│   ├── __init__.py        # Re-exports core classes and functions
+│   ├── devices.py         # Raw Input device enumeration and merging
+│   ├── lock.py            # FocusLock engine (keyboard hook, focus, mouse clip)
+│   ├── notes.py           # NotesMode engine (background keystroke routing)
+│   ├── windows.py         # Win32 window listing and process matching
+│   ├── tray.py            # System tray icon generator and menu controller
+│   └── win32.py           # Low-level ctypes Win32 API bindings
+│
+├── gui/                   # Graphical user interface (CustomTkinter)
 │   ├── __init__.py        # Re-exports App
 │   ├── app.py             # Main CTk application window & tray lifecycle
 │   ├── header.py          # Top navigation header & step indicators
@@ -166,12 +179,12 @@ hwlock/
 │       ├── __init__.py
 │       └── notes_page.py  # Editor selection & active notes controller
 │
-├── lock.py                # FocusLock engine (keyboard hook, focus management, mouse clipping)
-├── notes.py               # NotesMode engine (Win32 SendNotifyMessage keystroke router)
-├── devices.py             # Raw Input device enumeration and duplicate merging
-├── windows.py             # Win32 window listing and process matching
-├── tray.py                # System tray icon generator and menu controller
-└── win32.py               # Low-level ctypes Win32 API bindings
+├── cli/                   # Command line interface
+│   ├── __init__.py
+│   ├── main.py            # CLI argument parser and command handlers
+│   └── __main__.py        # Allows `python -m cli`
+│
+└── docs/                  # Architecture & design documentation
 ```
 
 ---

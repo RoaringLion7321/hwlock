@@ -5,7 +5,7 @@ import uuid
 from dataclasses import dataclass, field
 from ctypes import wintypes as wt
 
-import win32 as w
+from core import win32 as w
 
 TYPE_NAMES = {w.RIM_TYPEMOUSE: "mouse", w.RIM_TYPEKEYBOARD: "keyboard", w.RIM_TYPEHID: "hid"}
 
