@@ -29,8 +29,8 @@ import ctypes
 import winsound
 from ctypes import wintypes as wt
 
-import win32 as w
-from windows import find_window, window_pid
+from core import win32 as w
+from core.windows import find_window, window_pid
 
 # Text box window classes we know how to type into, best first.
 EDIT_CLASSES = (

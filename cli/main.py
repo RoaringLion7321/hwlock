@@ -8,9 +8,9 @@
 import argparse
 import sys
 
-from devices import list_devices
-from lock import BLOCKABLE, DEFAULT_BLOCK, FocusLock
-from windows import list_windows
+from core.devices import list_devices
+from core.lock import BLOCKABLE, DEFAULT_BLOCK, FocusLock
+from core.windows import list_windows
 
 
 def cmd_devices(args):
@@ -49,13 +49,30 @@ def cmd_lock(args):
 
 
 def cmd_notes(args):
-    from notes import NotesMode
+    from core.notes import NotesMode
     NotesMode(process=args.process, title=args.title, start_on=args.on, sound=not args.quiet).run()
+
+
+def cmd_gui(_args):
+    import ctypes
+    import customtkinter as ctk
+    from gui.app import App
+
+    try:
+        ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID("hwlock.app")
+    except (AttributeError, OSError):
+        pass
+    ctk.set_appearance_mode("dark")
+    ctk.set_default_color_theme("blue")
+    App().mainloop()
 
 
 def main(argv=None):
     p = argparse.ArgumentParser(prog="hwlock", description="Manage input devices and lock them to an application.")
-    sub = p.add_subparsers(dest="cmd", required=True)
+    sub = p.add_subparsers(dest="cmd")
+
+    g = sub.add_parser("gui", help="launch the hwlock graphical interface")
+    g.set_defaults(func=cmd_gui)
 
     d = sub.add_parser("devices", help="list connected keyboards and mice")
     d.add_argument("--all", action="store_true", help="also list built-in/virtual devices and other HID devices (controllers, headsets, ...)")
@@ -86,6 +103,9 @@ def main(argv=None):
     nt.set_defaults(func=cmd_notes)
 
     args = p.parse_args(argv)
+    if not args.cmd:
+        cmd_gui(args)
+        return
     if args.cmd == "lock" and not (args.process or args.title):
         lk.error("give a process name or --title")
     args.func(args)
