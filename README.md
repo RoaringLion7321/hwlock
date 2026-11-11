@@ -60,6 +60,15 @@ Lock Mode keeps your focus and inputs tied to a chosen program (e.g., preventing
    - When the lock starts, hwlock minimizes to the system tray to stay out of your way.
    - Click the tray icon at any time to bring the window back and click **Unlock**.
 
+#### How the lock works
+
+Windows sends keyboard input only to the foreground window, so hwlock:
+
+1. **Refocuses** the target whenever something else steals focus (popups, notifications, overlays).
+2. **Blocks escape keys** (Win, Alt+Tab, Alt+Esc, Ctrl+Esc, and optionally the Menu key) with a
+   low-level keyboard hook, but only while the target is focused.
+3. Optionally **confines the mouse** to the window (`--clip-mouse`).
+
 ---
 
 ### 2. Notes Mode (Type in the Background)
@@ -73,6 +82,10 @@ Notes Mode lets you type directly into a text editor (like Notepad) while keepin
    - The GUI stays open so you can conveniently click **Turn off / Turn on** whenever you want to pause or resume redirection.
    - Keystrokes are routed directly into the editor's text control using Win32 message delivery without stealing window focus.
 4. Use **Ctrl+Shift+F10** from any active window to toggle notes mode on and off on the fly (an audible chime confirms the switch).
+
+While it's on, every key goes to the text editor, even though another window is in front. The mouse
+works normally everywhere. Supported: letters and symbols (including AltGr), Enter, Tab,
+Backspace, Delete, arrow keys, Home/End, Page Up/Down, and Ctrl+A / C / X / V / Z / Y.
 
 #### Supported Editors & Limitations:
 - **Compatible with:** Windows 11 Notepad, classic Notepad, Notepad++, and WordPad (standard Win32 `Edit`, `RichEdit`, and `Scintilla` controls).
@@ -111,7 +124,7 @@ hwlock displays a status icon in the notification area:
 
 ---
 
-## Command Line Usage (CLI)
+<!-- ## Command Line Usage (CLI)
 
 hwlock includes a full command-line interface:
 
@@ -140,7 +153,7 @@ python run.py notes notepad.exe --on
 
 *(You can also invoke directly via `python -m cli <command>`)*
 
----
+--- -->
 
 ## Project Structure
 
