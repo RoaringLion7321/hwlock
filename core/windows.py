@@ -42,14 +42,14 @@ def _is_cloaked(hwnd):
     return cloaked.value != 0
 
 
-def _title(hwnd):
+def window_title(hwnd):
     n = w.GetWindowTextLengthW(hwnd)
     buf = ctypes.create_unicode_buffer(n + 1)
     w.GetWindowTextW(hwnd, buf, n + 1)
     return buf.value
 
 
-def _class_name(hwnd):
+def class_name(hwnd):
     buf = ctypes.create_unicode_buffer(256)
     w.GetClassNameW(hwnd, buf, len(buf))
     return buf.value
@@ -63,11 +63,11 @@ def list_windows():
     def callback(hwnd, _):
         if (w.IsWindowVisible(hwnd) and w.GetWindowTextLengthW(hwnd) > 0
                 and not w.GetWindow(hwnd, w.GW_OWNER) and not _is_cloaked(hwnd)
-                and _class_name(hwnd) not in ("Progman", "WorkerW")):
+                and class_name(hwnd) not in ("Progman", "WorkerW")):
             pid = window_pid(hwnd)
             r = wt.RECT()
             w.GetWindowRect(hwnd, ctypes.byref(r))
-            result.append(AppWindow(hwnd, pid, process_exe(pid), _title(hwnd),
+            result.append(AppWindow(hwnd, pid, process_exe(pid), window_title(hwnd),
                                     max(0, r.right - r.left) * max(0, r.bottom - r.top)))
         return True
 

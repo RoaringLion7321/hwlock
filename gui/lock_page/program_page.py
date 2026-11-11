@@ -14,7 +14,7 @@ import customtkinter as ctk
 
 from core.lock import BLOCKABLE, DEFAULT_BLOCK, FocusLock
 from core.windows import list_windows
-from gui.theme import GREEN, GREEN_HOVER, MUTED, RED, RED_HOVER, STATUS, KEY_LABELS, font
+from gui.theme import BADGE, GREEN, GREEN_HOVER, MUTED, RED, RED_HOVER, STATUS, KEY_LABELS, font
 from gui.widgets import ClickRow
 
 
@@ -31,6 +31,7 @@ class ProgramPage(ctk.CTkFrame):
         self.choice   = tk.StringVar()
         self.lock        = None
         self.lock_thread = None
+        self.target_name = ""        # shown in the status badge / tray tooltip while locked
         self.paused      = False
         self.log_queue   = queue.Queue()
         self._timer_end: float | None = None   # monotonic deadline; None = no timer
@@ -125,7 +126,8 @@ class ProgramPage(ctk.CTkFrame):
 
         self.hours_var = tk.StringVar(value="0")
         self.mins_var  = tk.StringVar(value="25")
-        vcmd = (self.register(lambda s: s.isdigit() and len(s) <= 3), "%P")
+        # Allow "" so the field can be cleared while editing; _timer_seconds() reads "" as 0.
+        vcmd = (self.register(lambda s: s == "" or (s.isdigit() and len(s) <= 3)), "%P")
 
         self._h_spin = ctk.CTkEntry(timer_row, textvariable=self.hours_var, width=52, font=font(13), justify="center")
         self._h_spin.configure(validate="key", validatecommand=vcmd)
@@ -150,7 +152,7 @@ class ProgramPage(ctk.CTkFrame):
             child.destroy()
         ctk.CTkLabel(self.summary, text="Locking", font=font(13), text_color=MUTED).pack(side="left", padx=(0, 6))
         for d in devices:
-            color, _label = ("#3b82f6", "Keyboard") if d.kind == "keyboard" else ("#a855f7", "Mouse") if d.kind == "mouse" else ("#64748b", "HID")
+            color, _label = BADGE.get(d.kind, BADGE["hid"])
             ctk.CTkLabel(
                 self.summary, text=d.name, font=font(12, "bold"),
                 fg_color=color, text_color="white", corner_radius=10, height=24,
@@ -218,6 +220,12 @@ class ProgramPage(ctk.CTkFrame):
             self.lock.stop()
             return
 
+        # Only one mode at a time: both install a keyboard hook with the same Ctrl+Shift+F12
+        # hotkey, and Notes mode swallows the keys Lock's hotkeys need.
+        if self.app.notes_page.running():
+            messagebox.showwarning("hwlock", "Notes mode is running. Stop it on the Notes tab before locking.")
+            return
+
         program = self.programs.get(self.choice.get())
         if not program:
             messagebox.showwarning("hwlock", "Choose a program from the list.")
@@ -232,11 +240,15 @@ class ProgramPage(ctk.CTkFrame):
         has_mouse    = any(d.kind == "mouse"    for d in self.selected)
         block        = [k for k, v in self.block_vars.items() if v.get()] if has_keyboard else []
 
+        # hwnd = the exact window picked in the list (not just the largest window of that exe);
+        # process lets the lock re-attach if that window closes and the program reopens.
         self.lock = FocusLock(
-            process=program.exe, block=block,
+            process=program.exe or None, hwnd=program.hwnd, block=block,
             refocus=self.refocus_var.get(), clip_mouse=has_mouse,
+            exempt_pids={os.getpid()},   # don't push hwlock's own window away (Show / Unlock)
             log=self.log_queue.put,
         )
+        self.target_name = program.exe or program.title[:40]
         self.lock_thread = threading.Thread(target=self._run_lock, daemon=True)
         self.lock_thread.start()
 
@@ -244,14 +256,14 @@ class ProgramPage(ctk.CTkFrame):
             self._timer_end = time.monotonic() + duration
             h, m, s = duration // 3600, (duration % 3600) // 60, duration % 60
             self._log(
-                f"Locking {', '.join(d.name for d in self.selected)} → {program.exe}  "
+                f"Locking {', '.join(d.name for d in self.selected)} → {self.target_name}  "
                 f"(timer: {h:02d}:{m:02d}:{s:02d})"
             )
         else:
             self._timer_end = None
-            self._log(f"Locking {', '.join(d.name for d in self.selected)} → {program.exe}")
+            self._log(f"Locking {', '.join(d.name for d in self.selected)} → {self.target_name}")
 
-        self._set_locked_ui(True, program.exe)
+        self._set_locked_ui(True, self.target_name)
         self.app.hide_to_tray()
 
     def _run_lock(self):
@@ -328,14 +340,18 @@ class ProgramPage(ctk.CTkFrame):
     def _poll(self):
         # Drain the log queue from the background lock thread.
         while not self.log_queue.empty():
-            msg = self.log_queue.get_nowait()
-            self._log(msg)
-            if "PAUSED" in msg:
-                self.paused = True
-                self._set_status("paused")
-            elif "RESUMED" in msg:
-                self.paused = False
-                self._set_status("locked", f" to {self.lock.process}")
+            self._log(self.log_queue.get_nowait())
+
+        # Paused / resumed (Ctrl+Shift+F11): read the lock's own flag rather than parsing
+        # log text, which can contain arbitrary window titles.
+        if self.locked():
+            paused = not self.lock.active
+            if paused != self.paused:
+                self.paused = paused
+                if paused:
+                    self._set_status("paused")
+                else:
+                    self._set_status("locked", f" to {self.target_name}")
 
         # Countdown timer: tick and auto-stop when it expires.
         if self.locked() and self._timer_end is not None:
@@ -348,7 +364,7 @@ class ProgramPage(ctk.CTkFrame):
                 h = int(remaining) // 3600
                 m = (int(remaining) % 3600) // 60
                 s = int(remaining) % 60
-                self._set_status("locked", f" to {self.lock.process} ({h:02d}:{m:02d}:{s:02d})")
+                self._set_status("locked", f" to {self.target_name} ({h:02d}:{m:02d}:{s:02d})")
 
         # Detect when the background thread has ended.
         if self.lock_thread is not None and not self.lock_thread.is_alive():

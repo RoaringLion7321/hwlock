@@ -1,38 +1,53 @@
 # How hwlock works
 
 A walkthrough of every file, what it does, and why it's built that way.
-For setup and usage see [README.md](README.md); for project status see [HANDOFF.md](HANDOFF.md).
+For setup and usage see [README.md](../README.md); for project status see [HANDOFF.md](HANDOFF.md).
 
 ## The big picture
 
 ```
-            ┌────────────┐      ┌─────────────┐
- gui.py ───►│ devices.py │      │ windows.py  │◄─── __main__.py (CLI)
-   │        │ what's     │      │ what's      │          │
-   │        │ plugged in │      │ running     │          │
-   │        └─────┬──────┘      └──────┬──────┘          │
-   │              │                    │                 │
-   ├──────────────┴──────► lock.py ◄───┼─────────────────┤
-   │                       FocusLock: keeps input going to one app
-   │                                   │                 │
-   └─────────────────────► notes.py ◄──┴─────────────────┘
-                           NotesMode: typing goes to a background editor
+                        run.py  (no arguments → GUI, arguments → CLI)
+                       ┌───┴────────────────┐
+                       ▼                    ▼
+   gui/  (CustomTkinter window + tray)    cli/  (argparse commands)
+     │                                      │
+     └──────────────┬───────────────────────┘
+                    ▼
+   core/   ┌────────────┐   ┌─────────────┐   ┌──────────┐
+           │ devices.py │   │ windows.py  │   │ tray.py  │ (GUI only)
+           │ what's     │   │ what's      │   │ tray     │
+           │ plugged in │   │ running     │   │ icon     │
+           └────────────┘   └──────┬──────┘   └──────────┘
+                     ┌─────────────┴─────────────┐
+                     ▼                           ▼
+                  lock.py                     notes.py
+                  FocusLock: keeps input      NotesMode: typing goes to
+                  going to one window         a background editor
 
                     (everything sits on) win32.py
                      ctypes bindings to Windows' DLLs
 ```
 
-- **win32.py** is the bottom layer: it lets Python call Windows functions directly.
-- **devices.py** answers "which keyboards and mice are connected?"
-- **windows.py** answers "which programs have windows open?"
-- **lock.py** does the actual locking.
-- **notes.py** is notes mode: it sends your typing to a text editor that isn't in front.
-- **gui.py** and **\_\_main\_\_.py** are two front ends (window and command line) over the same pieces.
+The code is split into three packages:
 
-No third-party packages are used except CustomTkinter for the GUI. Everything talks to
-Windows through Python's built-in `ctypes`.
+- **`core/`** is the engine and has no GUI code:
+  - **win32.py** is the bottom layer: it lets Python call Windows functions directly.
+  - **devices.py** answers "which keyboards and mice are connected?"
+  - **windows.py** answers "which programs have windows open?"
+  - **lock.py** does the actual locking.
+  - **notes.py** is notes mode: it sends your typing to a text editor that isn't in front.
+  - **tray.py** draws the system tray icon (used by the GUI).
+- **`gui/`** is the window (CustomTkinter), split into one module per page.
+- **`cli/`** is the command line.
 
-Imports are flat (`from devices import list_devices`), so run everything from inside this folder.
+`run.py` in the repo root is the entry point: with no arguments (or `gui`) it opens the
+window, with any other arguments it hands them to the CLI. `python -m gui` and
+`python -m cli <command>` work too. Imports are package-based (`from core.lock import FocusLock`),
+so run everything from the repo root.
+
+The CLI uses only the standard library. The GUI adds CustomTkinter, plus pystray and Pillow
+for the tray icon (optional: without them the GUI runs without a tray icon). Everything talks
+to Windows through Python's built-in `ctypes`.
 
 ---
 
@@ -141,6 +156,8 @@ Finally the list is sorted keyboards first, then mice, then by name.
   records the window handle, process ID, exe name, title and on-screen area.
 - `window_pid(hwnd)` gives the process that owns a window.
 - `process_exe(pid)` opens the process with minimal rights and reads its exe path.
+- `window_title(hwnd)` and `class_name(hwnd)` read a window's title and window class
+  (`class_name` is also what notes.py uses to recognise text boxes).
 - `find_window(process, title)` picks the best match by exe name and/or title text. If several
   windows match, it takes the biggest, which is usually the main window rather than a popup.
 
@@ -153,6 +170,19 @@ Windows sends keyboard input to whichever window is in the *foreground*. There's
 supported way to say "this keyboard belongs to that app". So "lock the keyboard to
 Trackmania" really means: keep Trackmania in front, and stop the keys that would take you
 away from it.
+
+### Choosing the target
+`FocusLock` takes a window handle (`hwnd`), a process name, a title substring, or a mix:
+- The GUI passes the **exact window** picked in the list (`hwnd`) plus its exe name. Locking
+  by exe name alone would pick that program's largest window, which is wrong when it has
+  several (two Chrome windows, or Store apps, which all run as `ApplicationFrameHost.exe`).
+- The CLI passes a process name and/or title, and `find_window` picks the best match.
+- If the target window closes, the lock waits and re-attaches to `find_window(process, title)`
+  when the program comes back (e.g. a restarted game). With only an `hwnd` it just waits.
+
+"The target is in front" (`_target_focused`) means the foreground window is the target or a
+window the target owns (its dialogs and message boxes, found with
+`GetAncestor(fg, GA_ROOTOWNER)`). Other windows of the same process don't count.
 
 ### What runs
 `run()` sets up three things on one thread, then loops on Windows messages:
@@ -187,6 +217,11 @@ away from it.
   0.25 s (`REFOCUS_COOLDOWN`) so it never fights in a tight loop. If no window is in front
   (`GetForegroundWindow` returns 0), it leaves things alone: that happens during UAC prompts
   and Ctrl+Alt+Del.
+- If the window in front belongs to one of the `exempt_pids`, it's left in front too (the
+  cursor clip is still released, and keys pass through because the target isn't in front).
+  The GUI passes its own process ID, so when you open hwlock from the tray during a lock, the
+  lock doesn't push it away before you can click **Unlock**. Clicking back into the target
+  resumes everything.
 
 ### Bringing a window to the front (`_bring_to_front`)
 Windows deliberately makes this hard so random programs can't steal focus. Only the process
@@ -230,6 +265,7 @@ to Notepad directly.
   (Notepad++), `RICHEDIT50W`/`RichEdit20W` (WordPad), `Edit` (classic Notepad). Windows 11
   Notepad has one text box per tab and hides the inactive ones, so `_text_box()` re-finds it
   whenever the cached one is gone or hidden.
+
 ### What happens to a key (`_handle_key`)
 1. Software-generated keys (`LLKHF_INJECTED`) pass through untouched.
 2. `KeyState.update()` records the key as held or released. This is hwlock's *own* record
@@ -246,7 +282,8 @@ A real key press reaches a text box as `WM_KEYDOWN`, then `WM_CHAR` (the charact
 - Modifiers (Shift, Ctrl, Alt, Win, Caps Lock) aren't sent; they only change `KeyState`.
 - **Ctrl+key** (not AltGr) becomes an edit command instead (`_ctrl_shortcut`): Ctrl+A →
   `EM_SETSEL` (select all), Ctrl+C/X/V → `WM_COPY`/`WM_CUT`/`WM_PASTE`, Ctrl+Z → `WM_UNDO`,
-  Ctrl+Y → redo (RichEdit `EM_REDO` or Scintilla `SCI_REDO`). Sending Ctrl+C as plain keys
+  Ctrl+Y → redo (`EM_REDO` for any RichEdit class, matched case-insensitively so WordPad's
+  `RICHEDIT50W` counts, or Scintilla's `SCI_REDO`). Sending Ctrl+C as plain keys
   wouldn't work, because the text box checks *its own* Ctrl state, which isn't held.
 - **Alt+key** is ignored (it would trigger the editor's menus).
 - **Everything else**: send `WM_KEYDOWN` (this is what moves the cursor for arrows, Delete,
@@ -265,19 +302,50 @@ keyboard while they're in front, so there's no Windows text box to send messages
 
 ---
 
-## gui.py: the window
+## tray.py: the system tray icon (`Tray`)
+
+The GUI shows a tray icon for as long as hwlock runs. `make_icon()` draws a padlock on a
+coloured rounded square with Pillow: blue = idle, green = locked or notes on, amber = lock
+paused or notes running but off. Hovering shows a tooltip with the details.
+
+pystray runs the icon on its own thread, and Tkinter may only be touched from the GUI thread.
+So menu clicks are not handled in `tray.py`: each item just puts a plain string on a queue
+(`"show"`, `"unlock"`, `"notes_toggle"`, `"notes_stop"`, `"quit"`), and the GUI reads that queue.
+Menu items appear only when they apply (`visible=` callbacks read `locked` / `notes_running`).
+`update()` is called from the GUI thread to change the colour, tooltip and menu state.
+
+If pystray or Pillow isn't installed, importing `core.tray` fails, `core.Tray` is `None`, and
+the GUI runs without a tray icon (closing the window then quits instead of hiding).
+
+---
+
+## gui/: the window
 
 Built with CustomTkinter (a modern-looking layer over Python's standard Tkinter).
 
+### Files
+| File | What's in it |
+|---|---|
+| `gui/app.py` | `App` (the main window) and `main()`, the one function that launches the GUI |
+| `gui/header.py` | `Header`: title, Lock / Notes tab switch, step chips |
+| `gui/theme.py` | shared colours (light/dark pairs), status-badge styles, key labels, `font()` |
+| `gui/widgets.py` | `ClickRow`, the clickable list row used by every page |
+| `gui/lock_page/device_page.py` | `DevicePage`, Lock step 1 |
+| `gui/lock_page/program_page.py` | `ProgramPage`, Lock step 2 (program, options, timer, lock/unlock) |
+| `gui/notes_page/notes_page.py` | `NotesPage`, the Notes tab |
+
 ### Structure
+- **`main()`** sets the process's own taskbar ID (`SetCurrentProcessExplicitAppUserModelID`),
+  so hwlock gets its own taskbar button instead of being grouped under Python, sets dark mode
+  and runs `App`. `run.py`, `python -m gui` and `python -m cli gui` all call it.
 - **`App`**: the main window. It holds a `Header` and three pages, and shows one at a time with
   `_show()` (`pack()` the page, `pack_forget()` the others). `switch_mode` handles the Lock/Notes
-  tabs and remembers which Lock step you were on (`lock_page`). Closing the window stops a
-  running lock and notes mode first (`_on_close`).
-  `hide_to_taskbar()` minimizes the window when a lock or notes mode starts, and `show_again()`
-  restores it when the pages' `_poll()` sees that it has ended. At startup the process sets its
-  own taskbar ID (`SetCurrentProcessExplicitAppUserModelID`), so hwlock gets its own taskbar
-  button instead of being grouped under Python.
+  tabs and remembers which Lock step you were on (`lock_page`). It also owns the tray:
+  `_tray_poll()` runs every 150 ms, carries out queued tray commands and updates the icon when
+  the state changes. `hide_to_tray()` hides the window when a lock starts (it minimizes instead
+  if there's no tray icon), and `show_again()` brings it back. The window's close button hides
+  hwlock to the tray; **Quit hwlock** in the tray menu quits for real (`_on_close`), stopping a
+  running lock or notes mode first.
 - **`Header`**: the title, the **Lock / Notes** tab switch (a `CTkSegmentedButton`) and the
   "1 Hardware / 2 Program" step chips. `set_step` highlights a chip; `show_steps` hides them
   on the Notes tab.
@@ -286,40 +354,57 @@ Built with CustomTkinter (a modern-looking layer over Python's standard Tkinter)
   frames) and binds click/hover. Checkboxes and radio buttons are skipped for clicks: they
   already toggle themselves, and running the row's click handler as well would toggle them
   straight back. That was the "can't select hardware" bug.
-- **`DevicePage`** (step 1): `refresh()` rebuilds the list from `list_devices()`. Each row has
-  a checkbox, a coloured type badge, the name and a subtitle (connection, plus manufacturer
-  unless it's a placeholder like "(Standard keyboards)"). `_changed()` repaints the rows and
-  the "N selected" count; **Select** passes the ticked devices to step 2.
+- **`DevicePage`** (step 1): `refresh()` rebuilds the list from `list_devices()` (external
+  devices only). Each row has a checkbox, a coloured type badge, the name and a subtitle
+  (connection, plus manufacturer unless it's a placeholder like "(Standard keyboards)").
+  `_changed()` repaints the rows and the "N selected" count; **Select** passes the ticked
+  devices to step 2. The selection decides *which features* apply (see "Why it can't pick one
+  keyboard" above), not which device is locked.
 - **`ProgramPage`** (step 2): shows the chosen hardware as badges, lists running programs
   (`list_windows()`, minus hwlock's own window) with radio buttons, and holds the options:
-  refocus switch and which keys to block. The key options are disabled if no keyboard was
-  selected. After a refresh it re-selects the same program if it's still running.
+  refocus switch, which keys to block, and the **auto-unlock timer** (hours + minutes; the
+  entries accept up to 3 digits and may be left empty, which counts as 0). The key options are
+  disabled if no keyboard was selected. After a refresh it re-selects the same program if it's
+  still running.
 - **`NotesPage`** (Notes tab): lists only windows that contain a supported text box
   (`find_text_box`), auto-selecting the only one if there's just one. **Start** runs `NotesMode`
-  on a background thread for the chosen window; **Turn on/off** does the same as Ctrl+Shift+F10.
-  It uses the same thread + queue + `_poll()` pattern as the Lock page (below), and reads
-  "[notes] ON/OFF" log lines to update its status pill.
+  on a background thread for the chosen window, with notes mode already on; **Turn on/off**
+  does the same as Ctrl+Shift+F10. It uses the same thread + queue + `_poll()` pattern as the
+  Lock page (below), and reads `NotesMode.on` on each poll to update its status pill and the
+  Turn on/off button.
 
 ### How Lock works with threads
 Tkinter must only be touched from its own thread, and `FocusLock.run()` blocks in its
 message loop, so:
-1. `toggle_lock()` builds a `FocusLock`: `clip_mouse` is on if a mouse was selected, and the
-   blocked keys only apply if a keyboard was selected. It starts `run()` on a background
-   **daemon thread** (one that won't keep Python alive on its own).
+1. `toggle_lock()` builds a `FocusLock` for the chosen window (`hwnd`, plus its exe name for
+   re-attaching), with hwlock's own process in `exempt_pids` so the lock never pushes the
+   hwlock window away: `clip_mouse` is on if a mouse was selected, and the blocked keys only apply
+   if a keyboard was selected. It starts `run()` on a background **daemon thread** (one that
+   won't keep Python alive on its own), then hides the window to the tray.
 2. The lock never touches the GUI. Its `log` function is `queue.Queue.put`, which is thread-safe.
 3. `_poll()` runs on the GUI thread every 100 ms. It moves log lines from the queue into the
-   log box, updates the status pill (Locked / Paused, spotted from the log text) and notices
-   when the lock thread has ended (e.g. after Ctrl+Shift+F12), then resets the buttons.
-4. **Unlock** calls `lock.stop()`, which is safe from any thread.
+   log box, updates the status pill (Locked / Paused, read from the lock's own `active` flag,
+   never from log text, which contains arbitrary window titles), counts down
+   the auto-unlock timer (calling `lock.stop()` when it reaches zero), and notices when the
+   lock thread has ended (e.g. after Ctrl+Shift+F12), then resets the buttons and shows the
+   window again.
+4. **Unlock** (button or tray menu) calls `lock.stop()`, which is safe from any thread.
 
-While locked, Back, Refresh and the program list are disabled so the selection can't change
-underneath a running lock.
+While locked, Back, Refresh, the program list and the timer entries are disabled so nothing
+can change underneath a running lock.
+
+### Only one mode at a time
+Lock and Notes each install their own keyboard hook, both use Ctrl+Shift+F12, and while notes
+mode is on it swallows the Ctrl/Shift/F11 keys Lock's hotkeys need. So the GUI refuses to start
+one while the other is running (`ProgramPage.toggle_lock` checks `notes_page.running()`,
+`NotesPage.toggle_running` checks `program_page.locked()`) and explains why in a message box.
 
 ---
 
-## \_\_main\_\_.py: command line
+## cli/: command line
 
-`argparse` with four subcommands, each a thin wrapper:
+`cli/main.py` is `argparse` with five subcommands, each a thin wrapper. `run.py <command>` and
+`python -m cli <command>` both reach it; with no command it opens the GUI.
 
 | Command | Does |
 |---|---|
@@ -327,6 +412,10 @@ underneath a running lock.
 | `windows` | prints `list_windows()` |
 | `lock <exe> [--title] [--block] [--clip-mouse] [--no-refocus]` | validates `--block` against `BLOCKABLE`, then runs `FocusLock` in the foreground until Ctrl+Shift+F12 or Ctrl+C |
 | `notes [exe] [--title] [--on] [--quiet]` | runs `NotesMode` for an editor (default `notepad.exe`) until Ctrl+Shift+F12 or Ctrl+C |
+| `gui` | opens the window (`gui.main()`) |
+
+The GUI packages are imported only by `gui`, so the other commands work without them installed.
+The one-mode-at-a-time rule is a GUI rule: two separate CLI processes could still run both.
 
 ---
 
@@ -334,8 +423,9 @@ underneath a running lock.
 
 | File | Purpose |
 |---|---|
-| `__init__.py` | package docstring and `__version__` |
-| `requirements.txt` | `customtkinter` (GUI only; the CLI needs nothing) |
+| `run.py` | entry point: GUI with no arguments, CLI otherwise |
+| `core/__init__.py` | re-exports the core classes/functions and `__version__`; `Tray` is `None` without pystray |
+| `requirements.txt` | `customtkinter` for the GUI, `pystray` + `Pillow` for the tray icon (the CLI needs none) |
 | `README.md` | setup and usage |
-| `HANDOFF.md` | project status, limitations and ideas for the next session |
-| `test.txt` | empty, not used by the code |
+| `docs/ABSTRACT.md` | a short project overview: purpose, problem, approach |
+| `docs/HANDOFF.md` | project status, limitations and ideas for the next session |

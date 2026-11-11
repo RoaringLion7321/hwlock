@@ -32,6 +32,7 @@ class NotesPage(ctk.CTkFrame):
         self.thread      = None
         self.editor_name = ""
         self.log_queue   = queue.Queue()
+        self._shown_on   = False   # the on/off state the status pill currently shows
 
         # ---- title + description ----
         ctk.CTkLabel(self, text="Notes mode", font=font(17, "bold")).pack(anchor="w")
@@ -163,6 +164,10 @@ class NotesPage(ctk.CTkFrame):
         if self.running():
             self.notes.stop()
             return
+        # Only one mode at a time (see ProgramPage.toggle_lock).
+        if self.app.program_page.locked():
+            messagebox.showwarning("hwlock", "A lock is active. Unlock it on the Lock tab before starting notes mode.")
+            return
         editor = self.editors.get(self.choice.get())
         if not editor:
             messagebox.showwarning("hwlock", "Choose a text editor from the list.")
@@ -195,6 +200,7 @@ class NotesPage(ctk.CTkFrame):
         self.status.configure(text=f"\u25cf  {text}{detail}", fg_color=bg, text_color=fg)
 
     def _set_running_ui(self, running: bool):
+        self._shown_on = False   # both branches below show the "off" state
         if running:
             self.start_btn.configure(text="\u25a0  Stop", fg_color=RED, hover_color=RED_HOVER)
             self.onoff_btn.configure(state="normal", text="Turn on")
@@ -225,14 +231,19 @@ class NotesPage(ctk.CTkFrame):
 
     def _poll(self):
         while not self.log_queue.empty():
-            msg = self.log_queue.get_nowait()
-            self._log(msg)
-            if msg.startswith("[notes] ON"):
-                self._set_status("notes_on", f" {self.editor_name}")
-                self.onoff_btn.configure(text="Turn off")
-            elif msg.startswith("[notes] OFF"):
-                self._set_status("notes_off")
-                self.onoff_btn.configure(text="Turn on")
+            self._log(self.log_queue.get_nowait())
+
+        # On / off: read NotesMode's own flag (same approach as the Lock page).
+        if self.running():
+            on = self.notes.on
+            if on != self._shown_on:
+                self._shown_on = on
+                if on:
+                    self._set_status("notes_on", f" {self.editor_name}")
+                    self.onoff_btn.configure(text="Turn off")
+                else:
+                    self._set_status("notes_off")
+                    self.onoff_btn.configure(text="Turn on")
 
         if self.thread is not None and not self.thread.is_alive():
             self.thread = None

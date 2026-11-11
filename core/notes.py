@@ -30,7 +30,7 @@ import winsound
 from ctypes import wintypes as wt
 
 from core import win32 as w
-from core.windows import find_window, window_pid
+from core.windows import class_name, find_window
 
 # Text box window classes we know how to type into, best first.
 EDIT_CLASSES = (
@@ -62,12 +62,6 @@ GENERIC = {w.VK_LSHIFT: w.VK_SHIFT, w.VK_RSHIFT: w.VK_SHIFT, w.VK_LCONTROL: w.VK
            w.VK_RCONTROL: w.VK_CONTROL, w.VK_LMENU: w.VK_MENU, w.VK_RMENU: w.VK_MENU}
 
 
-def _class_name(hwnd):
-    buf = ctypes.create_unicode_buffer(256)
-    w.GetClassNameW(hwnd, buf, len(buf))
-    return buf.value
-
-
 def find_text_box(top):
     """The visible text box inside window `top` (Windows 11 Notepad has one per tab;
     only the current tab's is visible). Returns (hwnd, class name) or (None, None)."""
@@ -75,7 +69,7 @@ def find_text_box(top):
 
     @w.WNDENUMPROC
     def callback(hwnd, _):
-        cls = _class_name(hwnd)
+        cls = class_name(hwnd)
         if cls in EDIT_CLASSES and cls not in found and w.IsWindowVisible(hwnd):
             found[cls] = hwnd
         return True
@@ -85,10 +79,6 @@ def find_text_box(top):
         if cls in found:
             return found[cls], cls
     return None, None
-
-
-def has_text_box(top):
-    return find_text_box(top)[0] is not None
 
 
 class KeyState:
@@ -285,7 +275,7 @@ class NotesMode:
         elif vk == CTRL_REDO:
             if self._box_class == "Scintilla":
                 self._send(box, w.SCI_REDO, 0, 0)
-            elif self._box_class.startswith("RichEdit") or self._box_class == "RichEditD2DPT":
+            elif self._box_class.lower().startswith("richedit"):   # RichEditD2DPT, RICHEDIT50W, RichEdit20W
                 self._send(box, w.EM_REDO, 0, 0)
 
     # ------------------------------------------------------------ lifecycle

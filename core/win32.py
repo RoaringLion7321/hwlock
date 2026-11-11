@@ -37,6 +37,7 @@ KEYEVENTF_KEYUP = 0x0002
 
 SW_RESTORE = 9
 GW_OWNER = 4
+GA_ROOTOWNER = 3
 DWMWA_CLOAKED = 14
 PROCESS_QUERY_LIMITED_INFORMATION = 0x1000
 
@@ -119,6 +120,7 @@ IsWindow = _proto(user32, "IsWindow", wt.BOOL, wt.HWND)
 IsWindowVisible = _proto(user32, "IsWindowVisible", wt.BOOL, wt.HWND)
 IsIconic = _proto(user32, "IsIconic", wt.BOOL, wt.HWND)
 GetWindow = _proto(user32, "GetWindow", wt.HWND, wt.HWND, wt.UINT)
+GetAncestor = _proto(user32, "GetAncestor", wt.HWND, wt.HWND, wt.UINT)
 GetWindowTextLengthW = _proto(user32, "GetWindowTextLengthW", ctypes.c_int, wt.HWND)
 GetWindowTextW = _proto(user32, "GetWindowTextW", ctypes.c_int, wt.HWND, wt.LPWSTR, ctypes.c_int)
 GetWindowThreadProcessId = _proto(user32, "GetWindowThreadProcessId", wt.DWORD, wt.HWND, ctypes.POINTER(wt.DWORD))

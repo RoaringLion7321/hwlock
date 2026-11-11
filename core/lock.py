@@ -15,7 +15,7 @@ import time
 from ctypes import wintypes as wt
 
 from core import win32 as w
-from core.windows import find_window, window_pid
+from core.windows import find_window, process_exe, window_pid, window_title
 
 BLOCKABLE = {
     "win": "Windows keys (Start menu, Win+D, Win+Tab, ...)",
@@ -31,19 +31,29 @@ REFOCUS_COOLDOWN = 0.25
 
 
 class FocusLock:
-    def __init__(self, process=None, title=None, block=DEFAULT_BLOCK, refocus=True,
-                 clip_mouse=False, log=print):
-        if not process and not title:
-            raise ValueError("need a process name or a window title")
+    """Lock to one window.
+
+    Give `hwnd` to lock to an exact window (the GUI does this), and/or `process` / `title`
+    to find one by name. When the window closes, the lock waits and re-attaches to the best
+    match for `process` / `title` (if given), e.g. when a game is restarted.
+    """
+
+    def __init__(self, process=None, title=None, hwnd=None, block=DEFAULT_BLOCK, refocus=True,
+                 clip_mouse=False, exempt_pids=(), log=print):
+        if not (process or title or hwnd):
+            raise ValueError("need a process name, window title or window handle")
         self.process, self.title = process, title
         self.block = set(block)
         self.refocus = refocus
         self.clip_mouse = clip_mouse
+        # Processes whose windows may come to the front without being pushed back
+        # (the GUI passes its own pid, so its window can be used to unlock).
+        self.exempt_pids = set(exempt_pids)
         self.log = log
 
         self.active = True
-        self.hwnd = None
-        self.pid = None
+        self.hwnd = hwnd
+        self.pid = window_pid(hwnd) if hwnd else None
         self._hook = None
         self._hook_proc = w.HOOKPROC(self._keyboard_proc)  # keep a reference: ctypes callbacks get GC'd
         self._swallowed = set()   # keys whose key-down we blocked, so we also block their key-up
@@ -54,6 +64,9 @@ class FocusLock:
 
     # ---------------------------------------------------------------- target
     def _acquire_target(self):
+        """Find a window by process / title (used at start and after the target closes)."""
+        if not (self.process or self.title):
+            return False   # locked to a window handle only: nothing to search for
         win = find_window(self.process, self.title)
         if win:
             if win.hwnd != self.hwnd:
@@ -65,8 +78,10 @@ class FocusLock:
         return bool(self.hwnd) and w.IsWindow(self.hwnd)
 
     def _target_focused(self):
+        """True if the target window, or a window it owns (its dialogs, message boxes), is
+        in front. Other windows of the same process (e.g. a second Chrome window) don't count."""
         fg = w.GetForegroundWindow()
-        return bool(fg) and (fg == self.hwnd or window_pid(fg) == self.pid)
+        return bool(fg) and (fg == self.hwnd or w.GetAncestor(fg, w.GA_ROOTOWNER) == self.hwnd)
 
     # -------------------------------------------------------------- keyboard
     def _keyboard_proc(self, n_code, w_param, l_param):
@@ -168,6 +183,8 @@ class FocusLock:
                 self._apply_clip()   # re-applied every tick: Windows resets clipping on many events
         else:
             self._release_clip()
+            if fg and window_pid(fg) in self.exempt_pids:
+                return   # e.g. hwlock's own window, opened from the tray to unlock: leave it in front
             # fg == 0 happens during UAC prompts / Ctrl+Alt+Del: leave those alone.
             if self.refocus and fg and time.monotonic() - self._last_refocus > REFOCUS_COOLDOWN:
                 self._last_refocus = time.monotonic()
@@ -189,7 +206,10 @@ class FocusLock:
 
     def run(self):
         w.enable_dpi_awareness()
-        if not self._acquire_target():
+        if self._target_alive():
+            self.log(f"[lock] target: {process_exe(self.pid) or '?'} (pid {self.pid}) "
+                     f"\"{window_title(self.hwnd)}\"")
+        elif not self._acquire_target():
             self.log("[lock] target not running yet, waiting for it...")
 
         self._hook = w.SetWindowsHookExW(w.WH_KEYBOARD_LL, self._hook_proc, w.GetModuleHandleW(None), 0)

@@ -18,19 +18,8 @@ def main():
         from cli.main import main as cli_main
         cli_main()
     else:
-        import ctypes
-        import customtkinter as ctk
-        from gui import App
-
-        # Own taskbar identity, so hwlock gets its own taskbar button instead of being grouped
-        # under (and labeled as) Python.
-        try:
-            ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID("hwlock.app")
-        except (AttributeError, OSError):
-            pass
-        ctk.set_appearance_mode("dark")
-        ctk.set_default_color_theme("blue")
-        App().mainloop()
+        from gui import main as gui_main
+        gui_main()
 
 
 if __name__ == "__main__":

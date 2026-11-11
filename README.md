@@ -47,7 +47,9 @@ Lock Mode keeps your focus and inputs tied to a chosen program (e.g., preventing
    - Detects all connected keyboards and mice (USB, Bluetooth, built-in).
    - Tick the devices you want to include, then click **Select →**.
 2. **Step 2 — Choose Program:**
-   - Pick the target application from currently open windows.
+   - Pick the target from currently open windows. The lock follows that exact window (and its
+     own dialogs), even if the program has other windows open; if the window closes, hwlock
+     re-attaches when the program opens a new one.
    - Configure protection options:
      - **Refocus Target:** Automatically pulls the application back into the foreground if notifications or background processes steal focus.
      - **Block Keys:** Swallows escape keys (`Win`, `Alt+Tab`, `Alt+Esc`, `Ctrl+Esc`, `Menu/Apps`) so you don't drop out of the app.
@@ -58,13 +60,20 @@ Lock Mode keeps your focus and inputs tied to a chosen program (e.g., preventing
    - When the timer runs out, hwlock automatically releases the lock and restores normal input.
 4. **Control & Tray:**
    - When the lock starts, hwlock minimizes to the system tray to stay out of your way.
-   - Click the tray icon at any time to bring the window back and click **Unlock**.
+   - Click the tray icon at any time to bring the window back and click **Unlock**, or right-click
+     the tray icon and choose **Unlock**, or press <kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>F12</kbd>.
+     While hwlock's own window is in front, the lock leaves it there (no refocusing, mouse not confined);
+     clicking back into the program resumes it.
+   - If the mouse is confined to the program, it can't reach the tray icon: press
+     <kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>F11</kbd> to pause first, or use
+     <kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>F12</kbd>.
 
 #### How the lock works
 
 Windows sends keyboard input only to the foreground window, so hwlock:
 
 1. **Refocuses** the target whenever something else steals focus (popups, notifications, overlays).
+   The target's own dialogs and hwlock's own window are left alone.
 2. **Blocks escape keys** (Win, Alt+Tab, Alt+Esc, Ctrl+Esc, and optionally the Menu key) with a
    low-level keyboard hook, but only while the target is focused.
 3. Optionally **confines the mouse** to the window (`--clip-mouse`).
@@ -93,6 +102,9 @@ Backspace, Delete, arrow keys, Home/End, Page Up/Down, and Ctrl+A / C / X / V / 
 - Standard typing, Backspace, Enter, Tab, Arrow keys, and common shortcuts (`Ctrl+A`, `Ctrl+C`, `Ctrl+V`, `Ctrl+X`, `Ctrl+Z`, `Ctrl+Y`) work seamlessly.
 
 ---
+
+> **One mode at a time:** Lock Mode and Notes Mode can't run together. Unlock before starting
+> Notes Mode, and stop Notes Mode before locking; hwlock tells you if the other one is running.
 
 ## Global Hotkeys
 
@@ -163,7 +175,6 @@ The project has a clean root directory with all code modularized into packages:
 hwlock/
 ├── run.py                 # Primary entry point (runs GUI or CLI commands)
 ├── requirements.txt       # Python package dependencies
-├── test.txt               # Test / scratch file
 ├── .gitignore             # Git ignore configuration
 ├── README.md              # Documentation
 │
@@ -177,8 +188,9 @@ hwlock/
 │   └── win32.py           # Low-level ctypes Win32 API bindings
 │
 ├── gui/                   # Graphical user interface (CustomTkinter)
-│   ├── __init__.py        # Re-exports App
-│   ├── app.py             # Main CTk application window & tray lifecycle
+│   ├── __init__.py        # Re-exports App and main
+│   ├── __main__.py        # Allows `python -m gui`
+│   ├── app.py             # main() launcher, main CTk window & tray lifecycle
 │   ├── header.py          # Top navigation header & step indicators
 │   ├── theme.py           # Color palette, font definitions, and status badges
 │   ├── widgets.py         # Shared interactive UI components (ClickRow)
@@ -198,6 +210,9 @@ hwlock/
 │   └── __main__.py        # Allows `python -m cli`
 │
 └── docs/                  # Architecture & design documentation
+    ├── ABSTRACT.md        # Project overview: purpose, problem, approach
+    ├── ARCHITECTURE.md    # How every file works
+    └── HANDOFF.md         # Status, known limitations, next steps
 ```
 
 ---

@@ -7,8 +7,8 @@ connected to a computer and controls which application receives their input. It 
 **Lock mode** binds the keyboard and mouse to a single program, such as a game, so that input
 cannot be taken away from it. **Notes mode** does the reverse: it sends typing to a text editor
 running in the background, so the user can keep writing while reading and clicking in other
-windows. hwlock has a two-tab graphical interface built with CustomTkinter and a matching command
-line. It talks to Windows directly through `ctypes`, so it needs no drivers, services or
+windows. hwlock has a two-tab graphical interface built with CustomTkinter, with a system tray
+icon that shows the current state, and a matching command line. Only one mode runs at a time. It talks to Windows directly through `ctypes`, so it needs no drivers, services or
 installation.
 
 ## Purpose
@@ -56,8 +56,10 @@ hwlock solves these problems in user mode, using only standard Windows interface
 - **Lock mode (`FocusLock`).** A system-wide low-level keyboard hook blocks the keys that switch
   away from the target program (Windows key, Alt+Tab, Alt+Esc, Ctrl+Esc), but only while that
   program is in front. A 50 ms timer brings the program back if something else takes focus, and
-  can keep the mouse cursor inside its window. Hotkeys pause the lock (Ctrl+Shift+F11) or end it
-  (Ctrl+Shift+F12), and the lock re-attaches automatically if the program is restarted.
+  can keep the mouse cursor inside its window. The lock follows the exact window the user picked,
+  not just any window of that program. Hotkeys pause the lock (Ctrl+Shift+F11) or end it
+  (Ctrl+Shift+F12), an optional timer ends it automatically, and the lock re-attaches
+  automatically if the program is restarted.
 - **Notes mode (`NotesMode`).** With Ctrl+Shift+F10, the same kind of hook takes every keystroke
   away from the window in front and sends it straight to the chosen editor's text box. Characters
   are worked out from hwlock's own record of held keys and the editor's keyboard layout, so

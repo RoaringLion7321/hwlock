@@ -1,9 +1,12 @@
 """hwlock command line.
 
-    python -m hwlock devices [--all] [-v]
-    python -m hwlock windows
-    python -m hwlock lock Trackmania.exe [--clip-mouse] [--block win,alttab] [--no-refocus]
-    python -m hwlock notes [notepad.exe] [--title file.txt] [--on]
+    python run.py devices [--all] [-v] [--raw]
+    python run.py windows
+    python run.py lock Trackmania.exe [--title T] [--clip-mouse] [--block win,alttab] [--no-refocus]
+    python run.py notes [notepad.exe] [--title file.txt] [--on] [--quiet]
+    python run.py gui
+
+(`python -m cli <command>` works the same.)
 """
 import argparse
 import sys
@@ -54,17 +57,8 @@ def cmd_notes(args):
 
 
 def cmd_gui(_args):
-    import ctypes
-    import customtkinter as ctk
-    from gui.app import App
-
-    try:
-        ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID("hwlock.app")
-    except (AttributeError, OSError):
-        pass
-    ctk.set_appearance_mode("dark")
-    ctk.set_default_color_theme("blue")
-    App().mainloop()
+    from gui import main as gui_main   # imported lazily: the CLI itself needs no GUI packages
+    gui_main()
 
 
 def main(argv=None):

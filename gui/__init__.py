@@ -1,8 +1,8 @@
 """gui package — public surface.
 
-Import the App class from here:
-    from gui import App
+    from gui import App, main
+    main()          # launch the hwlock window
 """
-from gui.app import App
+from gui.app import App, main
 
-__all__ = ["App"]
+__all__ = ["App", "main"]

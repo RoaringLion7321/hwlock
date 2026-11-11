@@ -2,13 +2,28 @@
 
 Owns the header, the body frame that hosts the three pages, the page-switching
 logic, the system-tray plumbing, and clean shutdown.
+
+`main()` is the one place that launches the GUI (used by run.py, `python -m gui`
+and `python -m cli gui`).
 """
 import ctypes
 import customtkinter as ctk
 from gui.header import Header
-# from gui.home_page import HomePage
 from gui.notes_page import NotesPage
 from gui.lock_page import DevicePage, ProgramPage
+
+
+def main():
+    """Set up the process and run the hwlock window until it closes."""
+    # Own taskbar identity, so hwlock gets its own taskbar button instead of being
+    # grouped under (and labeled as) Python.
+    try:
+        ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID("hwlock.app")
+    except (AttributeError, OSError):
+        pass
+    ctk.set_appearance_mode("dark")
+    ctk.set_default_color_theme("blue")
+    App().mainloop()
 
 
 class App(ctk.CTk):
@@ -110,7 +125,7 @@ class App(ctk.CTk):
                 parts.append("lock paused")
                 state = "waiting"
             else:
-                parts.append(f"locked to {pp.lock.process}")
+                parts.append(f"locked to {pp.target_name}")
                 state = "active"
         if notes_running:
             if notes_on:
