@@ -1,4 +1,4 @@
-# hwlock
+# HWLock
 
 A lightweight Windows utility to manage connected input devices, lock keyboard and mouse input to a specific application, and type into background editors with Notes mode.
 
