@@ -1,7 +1,7 @@
 # Handoff notes (for continuing work with Claude on another PC)
 
 Context from the Claude Code sessions that built this project (first session 2026-11-06,
-last updated 2026-11-10).
+last updated 2026-11-11).
 
 ## Goal
 A Windows tool to manage connected input hardware and "lock" keyboards/mice to one
@@ -21,36 +21,44 @@ The code is in three packages; see [ARCHITECTURE.md](ARCHITECTURE.md) for how ev
     be used to unlock),
   - blocks Win / Alt+Tab / Alt+Esc / Ctrl+Esc (/ Menu key) while the target is focused,
   - optional `ClipCursor` to confine the mouse,
-  - hotkeys: Ctrl+Shift+F11 pause/resume, Ctrl+Shift+F12 quit; `stop()` for use from another thread.
-- `core/notes.py`: `NotesMode`, notes mode (Idea A below): Ctrl+Shift+F10 sends all typing to
-  a background text editor.
+  - hotkeys (configurable, defaults): Ctrl+Shift+F11 pause/resume, Ctrl+Shift+F12 unlock;
+    `stop()` for use from another thread.
+- `core/notes.py`: `NotesMode`, notes mode (Idea A below): its hotkey (default Ctrl+Shift+F10)
+  sends all typing to a background text editor.
+- `core/settings.py`: the configurable hotkeys (`Hotkey`, validation, load/save) in
+  `%APPDATA%\hwlock\settings.json`. Rules: must include Ctrl, no duplicates, Ctrl+Alt+Del
+  reserved; anything invalid in the file falls back to the default.
 - `core/tray.py`: system tray icon (pystray + Pillow), colour-coded by state, with a menu
   (show, unlock, notes on/off, stop notes, quit).
 - `cli/main.py`: CLI (`python run.py devices | windows | lock <exe> | notes [exe] | gui`).
-- `gui/`: CustomTkinter GUI with Lock / Notes tabs, one module per page. Lock: 1. tick
-  hardware → Select, 2. pick a running program → Lock/Unlock, with an optional auto-unlock
-  timer. Notes: pick an editor → Start (notes mode turns on immediately). The window hides to
-  the tray while locked. Only one of Lock / Notes can run at a time.
+- `gui/`: CustomTkinter GUI with Lock / Notes tabs, one module per page. Lock: 1. toggle
+  **Lock keyboard** and/or **Lock mouse** (per hardware type, matching what Windows allows;
+  detected devices, built-in included, are listed under each) → Next, 2. pick a running
+  program → Lock/Unlock, with an optional auto-unlock timer. Notes: pick an editor → Start (notes mode turns on immediately). The window hides to
+  the tray while locked. Only one of Lock / Notes can run at a time. The ⚙ button opens
+  Settings, where the shortcuts are changed by pressing the new keys (disabled while a mode
+  runs; changes apply from the next start).
 - `run.py`: entry point. No arguments → GUI, otherwise → CLI.
 - Imports are package-based (`from core.lock import FocusLock`), so run everything from the
   repo root.
 - Python: use `py` (3.13+; README says 3.9+). The Microsoft Store `python` couldn't see some folders.
 
 ## Known limitations
-- Windows can't route individual keyboards separately. Selecting any keyboard locks *all*
-  keyboard input; selecting any mouse confines the cursor for all mice. True per-device
-  locking needs a filter driver such as Interception. That's a possible next step
-  (an Interception integration was tried on 2026-11-06 and removed at the user's request).
-- The hardware step lists external (USB/Bluetooth) devices only, and needs at least one
-  ticked, so a laptop with nothing plugged in can't get past step 1 in the GUI.
-- With a mouse selected, the cursor is confined to the target, so the tray icon can't be
+- Windows can't route individual keyboards separately. **Lock keyboard** locks *all*
+  keyboard input and **Lock mouse** confines the cursor for all mice; the GUI's hardware step
+  is built around that (it used to offer per-device checkboxes that didn't change anything).
+  True per-device locking needs a filter driver such as Interception: see "Planned feature"
+  below (an Interception integration was tried on 2026-11-06 and removed at the user's request).
+- With **Lock mouse** on, the cursor is confined to the target, so the tray icon can't be
   reached with the mouse; pause (Ctrl+Shift+F11) or quit (Ctrl+Shift+F12) first.
 - Notes mode keeps its own record of held keys. After Ctrl+Alt+Del or a UAC prompt, the
   key releases happen on the secure desktop and are never seen, so Ctrl/Alt can look stuck
   until they're tapped again.
 
 ## Device listing
-- Only external (USB/Bluetooth) devices by default; `devices --all` for everything.
+- CLI `devices`: only external (USB/Bluetooth) devices by default; `devices --all` for everything.
+- GUI hardware step: external **and built-in** devices (laptop keyboards/touchpads), virtual
+  ones hidden. The list is informational; locking doesn't depend on what was detected.
 - Interfaces of one physical device are merged by container ID; the USB boot protocol
   (Prot_01 keyboard / Prot_02 mouse) decides whether it's shown as a keyboard or a mouse.
 - Logitech Bolt receiver (046D:C548) shows as both, correctly; paired devices behind it would
@@ -60,8 +68,20 @@ The code is in three packages; see [ARCHITECTURE.md](ARCHITECTURE.md) for how ev
 Refocusing against Trackmania itself (only tested with Notepad, refocus off).
 If the game runs as admin, hwlock must run as admin too.
 
+## Planned feature: bind specific keyboards to specific windows
+Goal: in the hardware step, pick individual devices again and give each its own target,
+e.g. keyboard A always goes to the game while keyboard B goes to Notepad or stays with the desktop.
+- Needs per-device routing, which the low-level hook can't do (it doesn't know the device).
+- Route 1: optional **Interception** filter driver, which reports the device for every key
+  and can send it on or drop it. Needs a driver install (admin) and may be flagged by
+  anti-cheat software.
+- Route 2 (no driver, experimental): the Raw Input trick in "Idea B" below.
+- GUI plan: turn the "Detected" lists on the hardware step back into selectable rows, with a
+  target window per device, enabled only when a routing backend is available. The device
+  merging in `core/devices.py` (container ID + boot protocol) is already the right base.
+
 ## Ideas for next steps
-- Per-device locking via the Interception driver
+- Per-keyboard binding (the planned feature above)
 - Auto-lock when the game starts (the system tray icon is done)
 - Saved profiles per game
 - **Notes mode**: Idea A is implemented (`core/notes.py`); Idea B (two keyboards) isn't started

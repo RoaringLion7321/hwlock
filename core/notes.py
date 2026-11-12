@@ -1,9 +1,9 @@
 """Notes mode: type into a text editor while another window is in front.
 
-Press Ctrl+Shift+F10 to switch notes mode on. From then on every key you type goes
-into the chosen editor (Notepad, Notepad++, ...) even though it's in the background,
-so you can click around a browser or a document with the mouse and keep writing.
-Press Ctrl+Shift+F10 again to give the keyboard back to the window in front.
+Press the notes hotkey (Ctrl+Shift+F10 by default) to switch notes mode on. From then on
+every key you type goes into the chosen editor (Notepad, Notepad++, ...) even though it's in
+the background, so you can click around a browser or a document with the mouse and keep
+writing. Press it again to give the keyboard back to the window in front.
 
 How it works:
   - A low-level keyboard hook (like lock.py) sees every key before any app does.
@@ -21,15 +21,16 @@ Works with classic Win32 text boxes: Windows 11 Notepad, classic Notepad, Notepa
 Doesn't work with Electron/browser apps (VS Code, Discord, ...), which ignore keys sent
 to them while they're in the background.
 
-Hotkeys (from any window):
-  Ctrl+Shift+F10  notes mode on / off
-  Ctrl+Shift+F12  quit
+Hotkeys (from any window; defaults shown, configurable in core/settings.py):
+  Ctrl+Shift+F10  notes mode on / off   ("notes_toggle")
+  Ctrl+Shift+F12  stop notes mode       ("stop")
 """
 import ctypes
 import winsound
 from ctypes import wintypes as wt
 
 from core import win32 as w
+from core.settings import load_hotkeys
 from core.windows import class_name, find_window
 
 # Text box window classes we know how to type into, best first.
@@ -111,10 +112,13 @@ class KeyState:
 
 
 class NotesMode:
-    def __init__(self, process=None, title=None, hwnd=None, start_on=False, sound=True, log=print):
+    def __init__(self, process=None, title=None, hwnd=None, start_on=False, sound=True,
+                 hotkeys=None, log=print):
         if not (process or title or hwnd):
             raise ValueError("need a process name, window title or window handle")
         self.process, self.title = process, title
+        hotkeys = hotkeys or load_hotkeys()   # {action: Hotkey}, see core/settings.py
+        self.hk_toggle, self.hk_stop = hotkeys["notes_toggle"], hotkeys["stop"]
         self.window = hwnd          # the editor's main window
         self.on = False
         self.sound = sound
@@ -166,7 +170,7 @@ class NotesMode:
         if self.sound:
             winsound.MessageBeep(winsound.MB_ICONASTERISK if on else winsound.MB_OK)
         self.log(f"[notes] {'ON: typing goes to the editor' if on else 'OFF: keyboard back to normal'}"
-                 f" (Ctrl+Shift+F10 to toggle)")
+                 f" ({self.hk_toggle} to toggle)")
 
     def toggle(self):
         self.set_on(not self.on)
@@ -190,16 +194,16 @@ class NotesMode:
             return False   # software-generated keys (ours or other tools') pass untouched
         vk = kb.vkCode
         self.keys.update(vk, down)
-        ctrl, shift, alt = (self.keys.held(w.VK_CONTROL), self.keys.held(w.VK_SHIFT),
-                            self.keys.held(w.VK_MENU))
+        ctrl, alt = self.keys.held(w.VK_CONTROL), self.keys.held(w.VK_MENU)
 
         # Hotkeys, checked with our own key record (Windows' doesn't see swallowed Ctrl/Shift).
-        if vk in (w.VK_F10, w.VK_F12) and ctrl and shift:
+        toggle, stop = self.hk_toggle.matches(vk, self.keys.held), self.hk_stop.matches(vk, self.keys.held)
+        if toggle or stop:
             if down and vk not in self._swallowed:
-                if vk == w.VK_F10:
+                if toggle:
                     self.toggle()
                 else:
-                    self.log("[notes] quit hotkey pressed")
+                    self.log(f"[notes] {self.hk_stop} pressed, stopping")
                     w.PostQuitMessage(0)
             self._mark(vk, down)
             return True
@@ -292,13 +296,13 @@ class NotesMode:
 
     def run(self):
         if not self._find_editor():
-            self.log("[notes] editor isn't open yet; open it, then press Ctrl+Shift+F10")
+            self.log(f"[notes] editor isn't open yet; open it, then press {self.hk_toggle}")
         self._hook = w.SetWindowsHookExW(w.WH_KEYBOARD_LL, self._hook_proc, w.GetModuleHandleW(None), 0)
         if not self._hook:
             raise ctypes.WinError(ctypes.get_last_error())
         self._thread_id = w.GetCurrentThreadId()
         timer = w.SetTimer(None, 0, TICK_MS, None)
-        self.log("[notes] ready. Ctrl+Shift+F10 = notes mode on/off, Ctrl+Shift+F12 = quit")
+        self.log(f"[notes] ready. {self.hk_toggle} = notes mode on/off, {self.hk_stop} = stop")
         if self._start_on:
             self.set_on(True)
         try:

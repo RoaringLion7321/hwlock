@@ -36,15 +36,10 @@ class NotesPage(ctk.CTkFrame):
 
         # ---- title + description ----
         ctk.CTkLabel(self, text="Notes mode", font=font(17, "bold")).pack(anchor="w")
-        ctk.CTkLabel(
-            self,
-            text=(
-                "Type into a text editor while you click around other windows. "
-                "Pick the editor and press Start — notes mode turns on automatically. "
-                "Use the Turn on / Turn off button (or Ctrl+Shift+F10) to toggle it."
-            ),
-            font=font(13), text_color=MUTED, wraplength=700, justify="left", anchor="w",
-        ).pack(anchor="w", pady=(0, 10))
+        self.intro = ctk.CTkLabel(
+            self, text="", font=font(13), text_color=MUTED, wraplength=700, justify="left", anchor="w",
+        )
+        self.intro.pack(anchor="w", pady=(0, 10))
 
         # ---- scrollable editor list ----
         self.list = ctk.CTkScrollableFrame(self, fg_color="transparent", height=200)
@@ -76,11 +71,8 @@ class NotesPage(ctk.CTkFrame):
         self.onoff_btn.pack(side="right", padx=8)
 
         # ---- footer hints ----
-        ctk.CTkLabel(
-            self,
-            text="Ctrl+Shift+F10 notes on / off (works from any window)   \u2022   Ctrl+Shift+F12 stop",
-            font=font(12), text_color=MUTED,
-        ).pack(anchor="e", pady=(6, 0))
+        self.hotkey_hint = ctk.CTkLabel(self, text="", font=font(12), text_color=MUTED)
+        self.hotkey_hint.pack(anchor="e", pady=(6, 0))
         ctk.CTkLabel(
             self,
             text=(
@@ -98,9 +90,22 @@ class NotesPage(ctk.CTkFrame):
         )
         self.log_box.pack(fill="x", pady=(6, 0))
 
+        self.show_hotkeys()
         self._set_status("stopped")
         self.refresh()
         self.after(100, self._poll)
+
+    def show_hotkeys(self):
+        """Show the current shortcuts (called again after they're changed in Settings)."""
+        hk = self.app.hotkeys
+        self.intro.configure(text=(
+            "Type into a text editor while you click around other windows. "
+            "Pick the editor and press Start — notes mode turns on automatically. "
+            f"Use the Turn on / Turn off button (or {hk['notes_toggle']}) to toggle it."
+        ))
+        self.hotkey_hint.configure(
+            text=f"{hk['notes_toggle']} notes on / off (works from any window)   •   {hk['stop']} stop"
+        )
 
     # ------------------------------------------------------------------
     # Editor list
@@ -174,7 +179,8 @@ class NotesPage(ctk.CTkFrame):
             return
         self.editor_name = editor.exe
         # start_on=True: notes mode is active the moment the hook is installed.
-        self.notes  = NotesMode(hwnd=editor.hwnd, start_on=True, log=self.log_queue.put)
+        self.notes  = NotesMode(hwnd=editor.hwnd, start_on=True, hotkeys=self.app.hotkeys,
+                                log=self.log_queue.put)
         self.thread = threading.Thread(target=self._run, daemon=True)
         self.thread.start()
         self._set_running_ui(True)

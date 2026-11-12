@@ -17,6 +17,8 @@ from core.windows import list_windows
 from gui.theme import BADGE, GREEN, GREEN_HOVER, MUTED, RED, RED_HOVER, STATUS, KEY_LABELS, font
 from gui.widgets import ClickRow
 
+ALL_LABEL = {"keyboard": "All keyboards", "mouse": "All mice"}
+
 
 class ProgramPage(ctk.CTkFrame):
     """Step 2: show running programs and lock the selected hardware to one."""
@@ -24,7 +26,8 @@ class ProgramPage(ctk.CTkFrame):
     def __init__(self, master, app):
         super().__init__(master, fg_color="transparent")
         self.app      = app
-        self.selected = []           # Device list from DevicePage
+        self.lock_keyboard = True    # chosen on DevicePage
+        self.lock_mouse    = False
         self.programs = {}           # key -> AppWindow
         self.rows     = {}           # key -> ClickRow
         self.radios   = []
@@ -69,18 +72,24 @@ class ProgramPage(ctk.CTkFrame):
         )
         self.lock_btn.pack(side="right")
 
-        ctk.CTkLabel(
-            self, text="While locked:  Ctrl+Shift+F11 pause / resume   •   Ctrl+Shift+F12 unlock",
-            font=font(12), text_color=MUTED,
-        ).pack(anchor="e", pady=(6, 0))
+        self.hotkey_hint = ctk.CTkLabel(self, text="", font=font(12), text_color=MUTED)
+        self.hotkey_hint.pack(anchor="e", pady=(6, 0))
         self.log_box = ctk.CTkTextbox(
             self, height=90, font=ctk.CTkFont(family="Consolas", size=12),
             corner_radius=10, state="disabled",
         )
         self.log_box.pack(fill="x", pady=(6, 0))
 
+        self.show_hotkeys()
         self._set_status("idle")
         self.after(100, self._poll)
+
+    def show_hotkeys(self):
+        """Show the current shortcuts (called again after they're changed in Settings)."""
+        hk = self.app.hotkeys
+        self.hotkey_hint.configure(
+            text=f"While locked:  {hk['lock_pause']} pause / resume   •   {hk['stop']} unlock"
+        )
 
     # ------------------------------------------------------------------
     # UI construction helpers
@@ -145,22 +154,25 @@ class ProgramPage(ctk.CTkFrame):
     # Hardware hand-off (called by App after DevicePage)
     # ------------------------------------------------------------------
 
-    def set_hardware(self, devices):
-        """Receive the selected devices from DevicePage and refresh the program list."""
-        self.selected = devices
+    def set_hardware(self, keyboard: bool, mouse: bool):
+        """Receive the choice from DevicePage (lock the keyboard, the mouse, or both)
+        and refresh the program list."""
+        self.lock_keyboard, self.lock_mouse = keyboard, mouse
         for child in self.summary.winfo_children():
             child.destroy()
         ctk.CTkLabel(self.summary, text="Locking", font=font(13), text_color=MUTED).pack(side="left", padx=(0, 6))
-        for d in devices:
-            color, _label = BADGE.get(d.kind, BADGE["hid"])
+        for kind in self._kinds():
             ctk.CTkLabel(
-                self.summary, text=d.name, font=font(12, "bold"),
-                fg_color=color, text_color="white", corner_radius=10, height=24,
+                self.summary, text=ALL_LABEL[kind],
+                font=font(12, "bold"), fg_color=BADGE[kind][0], text_color="white", corner_radius=10, height=24,
             ).pack(side="left", padx=3)
-        has_keyboard = any(d.kind == "keyboard" for d in devices)
         for box in self.key_boxes:
-            box.configure(state="normal" if has_keyboard else "disabled")
+            box.configure(state="normal" if keyboard else "disabled")
         self.refresh()
+
+    def _kinds(self):
+        """The chosen hardware kinds, e.g. ["keyboard", "mouse"]."""
+        return [k for k, on in (("keyboard", self.lock_keyboard), ("mouse", self.lock_mouse)) if on]
 
     # ------------------------------------------------------------------
     # Program list
@@ -220,7 +232,7 @@ class ProgramPage(ctk.CTkFrame):
             self.lock.stop()
             return
 
-        # Only one mode at a time: both install a keyboard hook with the same Ctrl+Shift+F12
+        # Only one mode at a time: both install a keyboard hook with the same "stop"
         # hotkey, and Notes mode swallows the keys Lock's hotkeys need.
         if self.app.notes_page.running():
             messagebox.showwarning("hwlock", "Notes mode is running. Stop it on the Notes tab before locking.")
@@ -236,32 +248,29 @@ class ProgramPage(ctk.CTkFrame):
             messagebox.showwarning("hwlock", "Set a timer duration greater than zero, or uncheck the timer.")
             return
 
-        has_keyboard = any(d.kind == "keyboard" for d in self.selected)
-        has_mouse    = any(d.kind == "mouse"    for d in self.selected)
-        block        = [k for k, v in self.block_vars.items() if v.get()] if has_keyboard else []
+        block = [k for k, v in self.block_vars.items() if v.get()] if self.lock_keyboard else []
 
         # hwnd = the exact window picked in the list (not just the largest window of that exe);
         # process lets the lock re-attach if that window closes and the program reopens.
         self.lock = FocusLock(
             process=program.exe or None, hwnd=program.hwnd, block=block,
-            refocus=self.refocus_var.get(), clip_mouse=has_mouse,
+            refocus=self.refocus_var.get(), clip_mouse=self.lock_mouse,
             exempt_pids={os.getpid()},   # don't push hwlock's own window away (Show / Unlock)
+            hotkeys=self.app.hotkeys,
             log=self.log_queue.put,
         )
         self.target_name = program.exe or program.title[:40]
         self.lock_thread = threading.Thread(target=self._run_lock, daemon=True)
         self.lock_thread.start()
 
+        what = " + ".join(ALL_LABEL[k].lower() for k in self._kinds())
         if duration:
             self._timer_end = time.monotonic() + duration
             h, m, s = duration // 3600, (duration % 3600) // 60, duration % 60
-            self._log(
-                f"Locking {', '.join(d.name for d in self.selected)} → {self.target_name}  "
-                f"(timer: {h:02d}:{m:02d}:{s:02d})"
-            )
+            self._log(f"Locking {what} → {self.target_name}  (timer: {h:02d}:{m:02d}:{s:02d})")
         else:
             self._timer_end = None
-            self._log(f"Locking {', '.join(d.name for d in self.selected)} → {self.target_name}")
+            self._log(f"Locking {what} → {self.target_name}")
 
         self._set_locked_ui(True, self.target_name)
         self.app.hide_to_tray()
@@ -342,7 +351,7 @@ class ProgramPage(ctk.CTkFrame):
         while not self.log_queue.empty():
             self._log(self.log_queue.get_nowait())
 
-        # Paused / resumed (Ctrl+Shift+F11): read the lock's own flag rather than parsing
+        # Paused / resumed (pause hotkey): read the lock's own flag rather than parsing
         # log text, which can contain arbitrary window titles.
         if self.locked():
             paused = not self.lock.active

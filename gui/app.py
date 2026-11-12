@@ -1,16 +1,18 @@
 """App — the top-level CTk window.
 
 Owns the header, the body frame that hosts the three pages, the page-switching
-logic, the system-tray plumbing, and clean shutdown.
+logic, the settings (hotkeys), the system-tray plumbing, and clean shutdown.
 
 `main()` is the one place that launches the GUI (used by run.py, `python -m gui`
 and `python -m cli gui`).
 """
 import ctypes
 import customtkinter as ctk
+from core.settings import load_hotkeys
 from gui.header import Header
 from gui.notes_page import NotesPage
 from gui.lock_page import DevicePage, ProgramPage
+from gui.settings_dialog import SettingsDialog
 
 
 def main():
@@ -32,9 +34,12 @@ class App(ctk.CTk):
         self.title("hwlock")
         self.geometry("780x680")
         self.minsize(680, 580)
+        # {action: Hotkey}; the pages pass these to FocusLock / NotesMode and show them in hints
+        self.hotkeys = load_hotkeys()
+        self._settings = None   # the open SettingsDialog, if any
 
         # ---- header ----
-        self.header = Header(self, on_mode=self.switch_mode)
+        self.header = Header(self, on_mode=self.switch_mode, on_settings=self.open_settings)
         self.header.pack(fill="x", padx=20, pady=(16, 10))
         ctk.CTkFrame(self, height=1, fg_color=("#e5e7eb", "#34373d")).pack(fill="x", padx=20)
 
@@ -57,6 +62,26 @@ class App(ctk.CTk):
             self.after(150, self._tray_poll)
         except Exception as e:
             self.program_page._log(f"[tray] no tray icon: {e}")
+
+    # ------------------------------------------------------------------
+    # Settings
+    # ------------------------------------------------------------------
+
+    def open_settings(self):
+        """Open the Settings dialog (or bring the open one to the front)."""
+        if self._settings is not None and self._settings.winfo_exists():
+            self._settings.lift()
+            self._settings.focus_force()
+            return
+        busy = self.program_page.locked() or self.notes_page.running()
+        self._settings = SettingsDialog(self, self.hotkeys, on_save=self.apply_hotkeys, busy=busy)
+
+    def apply_hotkeys(self, hotkeys):
+        """New hotkeys were saved: use them for the next lock / notes session and update hints."""
+        self.hotkeys = hotkeys
+        self.program_page.show_hotkeys()
+        self.notes_page.show_hotkeys()
+        self._last_tray_status = None   # tooltip mentions the notes hotkey: refresh it
 
     # ------------------------------------------------------------------
     # Page switching
@@ -85,9 +110,9 @@ class App(ctk.CTk):
         self._show(self.device_page)
         self.header.set_step(0)
 
-    def show_programs(self, devices):
+    def show_programs(self, keyboard: bool, mouse: bool):
         self.lock_page = self.program_page
-        self.program_page.set_hardware(devices)
+        self.program_page.set_hardware(keyboard=keyboard, mouse=mouse)
         self._show(self.program_page)
         self.header.set_step(1)
 
@@ -132,7 +157,7 @@ class App(ctk.CTk):
                 parts.append(f"typing into {np_.editor_name}")
                 state = "active"
             else:
-                parts.append("notes ready (Ctrl+Shift+F10)")
+                parts.append(f"notes ready ({self.hotkeys['notes_toggle']})")
                 state = state if state == "active" else "waiting"
         tooltip = "hwlock: " + ", ".join(parts) if parts else "hwlock"
         return state, tooltip, locked, notes_running, notes_on

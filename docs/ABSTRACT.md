@@ -51,14 +51,15 @@ hwlock solves these problems in user mode, using only standard Windows interface
 - **Accurate device discovery.** Devices are listed through the Raw Input API and the Windows
   device tree (Configuration Manager). Entries belonging to the same physical device are merged
   by their *container ID*. The USB HID *boot protocol* each device declares then identifies its
-  real type, so a mouse is shown as a mouse and a keyboard as a keyboard. Only external (USB and
-  Bluetooth) devices are shown by default.
+  real type, so a mouse is shown as a mouse and a keyboard as a keyboard. The lock screen lists
+  external (USB, Bluetooth) and built-in devices, so laptops are fully supported.
 - **Lock mode (`FocusLock`).** A system-wide low-level keyboard hook blocks the keys that switch
   away from the target program (Windows key, Alt+Tab, Alt+Esc, Ctrl+Esc), but only while that
   program is in front. A 50 ms timer brings the program back if something else takes focus, and
-  can keep the mouse cursor inside its window. The lock follows the exact window the user picked,
-  not just any window of that program. Hotkeys pause the lock (Ctrl+Shift+F11) or end it
-  (Ctrl+Shift+F12), an optional timer ends it automatically, and the lock re-attaches
+  can keep the mouse cursor inside its window. The user chooses to lock the keyboard, the mouse,
+  or both; this is per hardware type, matching what Windows allows. The lock follows the exact window the user picked,
+  not just any window of that program. Hotkeys pause the lock (Ctrl+Shift+F11 by default) or end
+  it (Ctrl+Shift+F12), an optional timer ends it automatically, and the lock re-attaches
   automatically if the program is restarted.
 - **Notes mode (`NotesMode`).** With Ctrl+Shift+F10, the same kind of hook takes every keystroke
   away from the window in front and sends it straight to the chosen editor's text box. Characters
@@ -68,11 +69,13 @@ hwlock solves these problems in user mode, using only standard Windows interface
   mouse stays completely free, so the user can browse and read while their typing keeps going
   into Notepad, Notepad++ or WordPad.
 - **Safe by design.** Locks are released cleanly on exit or error, keys are never left "stuck",
-  and every mode can be turned off from any window with a hotkey.
+  and every mode can be turned off from any window with a hotkey. All hotkeys can be changed in
+  a Settings window, with checks that keep them from clashing with each other or with typing.
 
 **Limitations and future work.** Because Windows does not reveal which keyboard a hooked key came
 from, lock mode applies to all keyboards and mouse confinement to all mice. Notes mode works with
-classic Windows text boxes, but not with browser-based apps such as VS Code. Possible next steps
-are per-device locking through an optional filter driver, a two-keyboard notes mode that routes
+classic Windows text boxes, but not with browser-based apps such as VS Code. The main planned
+feature is binding specific keyboards to specific windows (e.g. one keyboard for a game, another
+for notes) through an optional filter driver. Other possible next steps are a two-keyboard notes mode that routes
 keys by the device they came from, saved per-game profiles, and automatic locking when a chosen
 game starts.

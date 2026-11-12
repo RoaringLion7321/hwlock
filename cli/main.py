@@ -13,6 +13,7 @@ import sys
 
 from core.devices import list_devices
 from core.lock import BLOCKABLE, DEFAULT_BLOCK, FocusLock
+from core.settings import load_hotkeys, settings_path
 from core.windows import list_windows
 
 
@@ -62,6 +63,8 @@ def cmd_gui(_args):
 
 
 def main(argv=None):
+    hk = load_hotkeys()   # same settings file the GUI's Settings dialog edits
+    where = f"Change them in the GUI's Settings, or in {settings_path()}."
     p = argparse.ArgumentParser(prog="hwlock", description="Manage input devices and lock them to an application.")
     sub = p.add_subparsers(dest="cmd")
 
@@ -78,7 +81,7 @@ def main(argv=None):
     wn.set_defaults(func=cmd_windows)
 
     lk = sub.add_parser("lock", help="lock keyboard/mouse input to an application",
-                        epilog="Hotkeys: Ctrl+Shift+F11 pause/resume, Ctrl+Shift+F12 quit.")
+                        epilog=f"Hotkeys: {hk['lock_pause']} pause/resume, {hk['stop']} unlock. {where}")
     lk.add_argument("process", nargs="?", help="process name, e.g. Trackmania.exe")
     lk.add_argument("--title", help="match a window title substring instead of / as well as the process")
     lk.add_argument("--block", default=",".join(DEFAULT_BLOCK),
@@ -89,7 +92,7 @@ def main(argv=None):
     lk.set_defaults(func=cmd_lock)
 
     nt = sub.add_parser("notes", help="type into a text editor while other windows are in front",
-                        epilog="Hotkeys: Ctrl+Shift+F10 notes mode on/off, Ctrl+Shift+F12 quit.")
+                        epilog=f"Hotkeys: {hk['notes_toggle']} notes mode on/off, {hk['stop']} stop. {where}")
     nt.add_argument("process", nargs="?", default="notepad.exe", help="editor process (default: notepad.exe)")
     nt.add_argument("--title", help="match a window title substring (e.g. the file name)")
     nt.add_argument("--on", action="store_true", help="start with notes mode already on")

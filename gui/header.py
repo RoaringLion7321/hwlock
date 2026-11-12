@@ -1,13 +1,13 @@
-"""Header bar: hwlock title, Lock / Notes mode toggle, and step breadcrumbs."""
+"""Header bar: hwlock title, Lock / Notes mode toggle, step breadcrumbs, settings button."""
 import customtkinter as ctk
 
 from gui.theme import MUTED, font
 
 
 class Header(ctk.CTkFrame):
-    """Top bar with the app title, mode switcher (Lock/Notes), and step chips."""
+    """Top bar with the app title, mode switcher (Lock/Notes), step chips and a settings gear."""
 
-    def __init__(self, master, on_mode):
+    def __init__(self, master, on_mode, on_settings):
         super().__init__(master, fg_color="transparent")
 
         ctk.CTkLabel(self, text="hwlock", font=font(22, "bold")).pack(side="left")
@@ -17,6 +17,12 @@ class Header(ctk.CTkFrame):
         )
         self.mode.set("Lock")
         self.mode.pack(side="left", padx=(16, 0), pady=(4, 0))
+
+        # Packed before the steps so it stays rightmost when the steps are hidden / re-shown.
+        ctk.CTkButton(
+            self, text="⚙", width=34, height=30, font=font(17), fg_color="transparent",
+            border_width=1, text_color=("gray10", "gray90"), command=on_settings,
+        ).pack(side="right", padx=(10, 0))
 
         self.steps = steps = ctk.CTkFrame(self, fg_color="transparent")
         steps.pack(side="right")

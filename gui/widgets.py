@@ -1,7 +1,7 @@
 """ClickRow — a rounded list row that highlights on hover and fires on_click.
 
-Shared by DevicePage, ProgramPage and NotesPage so it lives here rather than
-in any single page module.
+Shared by ProgramPage and NotesPage (their program / editor lists) so it lives
+here rather than in any single page module.
 """
 import customtkinter as ctk
 

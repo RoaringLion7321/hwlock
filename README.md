@@ -44,8 +44,12 @@ python -m cli gui
 Lock Mode keeps your focus and inputs tied to a chosen program (e.g., preventing accidental Alt+Tab, Start Menu popups, or mouse clicks escaping during full-screen games or kiosk tasks).
 
 1. **Step 1 — Select Hardware:**
-   - Detects all connected keyboards and mice (USB, Bluetooth, built-in).
-   - Tick the devices you want to include, then click **Select →**.
+   - Choose **Lock keyboard**, **Lock mouse**, or both, then click **Next →** (keyboard is on by default).
+   - Windows doesn't tell programs which keyboard or mouse an input came from, so the choice is
+     per *type*: **Lock keyboard** applies to every keyboard and **Lock mouse** to every mouse,
+     including built-in laptop keyboards and touchpads. The connected devices (USB, Bluetooth,
+     built-in) are listed under each button so you can see what's covered. Binding one specific
+     keyboard to one specific window is a [planned feature](#planned-features).
 2. **Step 2 — Choose Program:**
    - Pick the target from currently open windows. The lock follows that exact window (and its
      own dialogs), even if the program has other windows open; if the window closes, hwlock
@@ -53,7 +57,8 @@ Lock Mode keeps your focus and inputs tied to a chosen program (e.g., preventing
    - Configure protection options:
      - **Refocus Target:** Automatically pulls the application back into the foreground if notifications or background processes steal focus.
      - **Block Keys:** Swallows escape keys (`Win`, `Alt+Tab`, `Alt+Esc`, `Ctrl+Esc`, `Menu/Apps`) so you don't drop out of the app.
-     - **Confine Mouse Cursor:** Clips mouse movement to the target window boundaries when a mouse is selected.
+     - **Block Keys** is available when **Lock keyboard** was chosen in Step 1.
+     - **Confine Mouse Cursor:** Clips mouse movement to the target window boundaries when **Lock mouse** was chosen in Step 1.
 3. **Auto-Unlock Timer:**
    - Check **Auto-unlock after** and set the duration in **hours** and **minutes**.
    - Upon pressing **Lock**, the lock activates and displays a live remaining countdown (e.g. `(00:24:59)`) in the status badge.
@@ -108,15 +113,35 @@ Backspace, Delete, arrow keys, Home/End, Page Up/Down, and Ctrl+A / C / X / V / 
 
 ## Global Hotkeys
 
-These shortcuts operate globally across Windows while hwlock is active:
+These shortcuts operate globally across Windows while hwlock is active. The ones below are the
+defaults; you can change them in [Settings](#settings) (everything in this README refers to the defaults).
 
-| Hotkey | Context | Action |
+| Default hotkey | Context | Action |
 | :--- | :--- | :--- |
 | <kbd>Ctrl</kbd> + <kbd>Shift</kbd> + <kbd>F10</kbd> | Notes Mode | Toggle typing redirection **on / off** (audio feedback) |
 | <kbd>Ctrl</kbd> + <kbd>Shift</kbd> + <kbd>F11</kbd> | Lock Mode | **Pause / resume** keyboard and mouse confinement |
 | <kbd>Ctrl</kbd> + <kbd>Shift</kbd> + <kbd>F12</kbd> | Any Mode | **Emergency Unlock / Stop** (restores window immediately) |
 
 > **Safety note:** <kbd>Ctrl</kbd> + <kbd>Alt</kbd> + <kbd>Del</kbd> is reserved by the Windows kernel and will always work to regain system control.
+
+---
+
+## Settings
+
+Click the **⚙** button at the top right of the window to change the keyboard shortcuts:
+
+1. Click the shortcut you want to change; it shows **Press keys…**.
+2. Press the new combination (e.g. <kbd>Ctrl</kbd> + <kbd>Alt</kbd> + <kbd>Q</kbd>). <kbd>Esc</kbd> cancels.
+3. Click **Save**. **Reset to defaults** restores the shortcuts above.
+
+Rules: every shortcut must include <kbd>Ctrl</kbd> (optionally with <kbd>Shift</kbd> and/or <kbd>Alt</kbd>)
+and end with F1–F24, a letter, a digit, Space or a navigation key (arrows, Home/End, Page Up/Down,
+Insert/Delete, Pause, Scroll Lock). Two actions can't share a shortcut, and
+<kbd>Ctrl</kbd> + <kbd>Alt</kbd> + <kbd>Delete</kbd> is reserved by Windows. Modifiers must match
+exactly, so <kbd>Ctrl</kbd> + <kbd>Shift</kbd> + <kbd>Q</kbd> doesn't trigger a <kbd>Ctrl</kbd> + <kbd>Q</kbd> shortcut.
+
+Shortcuts can't be changed while Lock or Notes Mode is running, and new ones apply the next time
+a mode starts. They're saved in `%APPDATA%\hwlock\settings.json`, which the command line uses too.
 
 ---
 
@@ -183,6 +208,7 @@ hwlock/
 │   ├── devices.py         # Raw Input device enumeration and merging
 │   ├── lock.py            # FocusLock engine (keyboard hook, focus, mouse clip)
 │   ├── notes.py           # NotesMode engine (background keystroke routing)
+│   ├── settings.py        # Hotkey settings: parsing, validation, load/save (JSON)
 │   ├── windows.py         # Win32 window listing and process matching
 │   ├── tray.py            # System tray icon generator and menu controller
 │   └── win32.py           # Low-level ctypes Win32 API bindings
@@ -191,13 +217,14 @@ hwlock/
 │   ├── __init__.py        # Re-exports App and main
 │   ├── __main__.py        # Allows `python -m gui`
 │   ├── app.py             # main() launcher, main CTk window & tray lifecycle
-│   ├── header.py          # Top navigation header & step indicators
+│   ├── header.py          # Top navigation header, step indicators & settings button
+│   ├── settings_dialog.py # Settings window (record new keyboard shortcuts)
 │   ├── theme.py           # Color palette, font definitions, and status badges
 │   ├── widgets.py         # Shared interactive UI components (ClickRow)
 │   │
 │   ├── lock_page/         # Lock Mode UI
 │   │   ├── __init__.py
-│   │   ├── device_page.py # Step 1: Hardware device selection
+│   │   ├── device_page.py # Step 1: Lock keyboard / Lock mouse choice
 │   │   └── program_page.py# Step 2: Program selection, options & timer
 │   │
 │   └── notes_page/        # Notes Mode UI
@@ -222,4 +249,15 @@ hwlock/
 - **This only works on Windows OS**
 - **Administrator Privileges:** If the game or target application is running as Administrator (elevated), Windows security (UIPI) prevents standard-user processes from sending input or refocusing it. Run hwlock as Administrator to match permissions.
 - **DPI Awareness:** hwlock automatically enables Windows per-monitor DPI awareness to ensure precise mouse cursor clipping across multi-monitor setups.
-- **Physical Keyboard Isolation:** In pure Win32 user-space, Windows routes all connected keyboards to the active foreground window. Isolating hardware at the driver level (e.g. keyboard A to Game, keyboard B to Desktop) requires a kernel filter driver such as Interception; device discovery in `devices.py` provides the hardware enumeration base for this workflow.
+- **Physical Keyboard Isolation:** In pure Win32 user-space, Windows routes all connected keyboards to the active foreground window. That's why Lock Mode works per hardware type (all keyboards / all mice). Isolating hardware at the driver level (e.g. keyboard A to Game, keyboard B to Desktop) requires a kernel filter driver such as Interception; device discovery in `devices.py` provides the hardware enumeration base for this workflow. See [Planned Features](#planned-features).
+
+---
+
+## Planned Features
+
+- **Bind specific keyboards to specific windows.** Choose individual devices in Step 1 and give
+  each its own target, e.g. keyboard A always goes to the game while keyboard B types into
+  Notepad or stays with the desktop. This needs per-device input routing, which Windows doesn't
+  offer to normal programs: the likely route is an optional filter driver such as
+  [Interception](https://github.com/oblitum/Interception). See `docs/HANDOFF.md` for the
+  design notes, including a driver-free experiment for a two-keyboard Notes Mode.

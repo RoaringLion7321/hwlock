@@ -6,15 +6,16 @@ to an app" means:
   2. swallowing the keys that would switch away from it (Win, Alt+Tab, ...),
   3. optionally confining the mouse cursor to the window.
 
-Hotkeys (always active while hwlock runs):
-  Ctrl+Shift+F11  pause / resume the lock
-  Ctrl+Shift+F12  quit hwlock
+Hotkeys (active while the lock runs; defaults shown, configurable in core/settings.py):
+  Ctrl+Shift+F11  pause / resume the lock   ("lock_pause")
+  Ctrl+Shift+F12  end the lock               ("stop")
 """
 import ctypes
 import time
 from ctypes import wintypes as wt
 
 from core import win32 as w
+from core.settings import load_hotkeys
 from core.windows import find_window, process_exe, window_pid, window_title
 
 BLOCKABLE = {
@@ -39,10 +40,12 @@ class FocusLock:
     """
 
     def __init__(self, process=None, title=None, hwnd=None, block=DEFAULT_BLOCK, refocus=True,
-                 clip_mouse=False, exempt_pids=(), log=print):
+                 clip_mouse=False, exempt_pids=(), hotkeys=None, log=print):
         if not (process or title or hwnd):
             raise ValueError("need a process name, window title or window handle")
         self.process, self.title = process, title
+        hotkeys = hotkeys or load_hotkeys()   # {action: Hotkey}, see core/settings.py
+        self.hk_pause, self.hk_stop = hotkeys["lock_pause"], hotkeys["stop"]
         self.block = set(block)
         self.refocus = refocus
         self.clip_mouse = clip_mouse
@@ -95,13 +98,14 @@ class FocusLock:
         """Return True to swallow the key event."""
         vk = kb.vkCode
 
-        # Our own hotkeys.
-        if vk in (w.VK_F11, w.VK_F12) and w.key_down(w.VK_CONTROL) and w.key_down(w.VK_SHIFT):
+        # Our own hotkeys (modifiers read from Windows: the lock never swallows them).
+        pause, stop = self.hk_pause.matches(vk, w.key_down), self.hk_stop.matches(vk, w.key_down)
+        if pause or stop:
             if down:
-                if vk == w.VK_F11:
+                if pause:
                     self.set_active(not self.active)
                 else:
-                    self.log("[lock] quit hotkey pressed")
+                    self.log(f"[lock] {self.hk_stop} pressed, unlocking")
                     w.PostQuitMessage(0)
             return True
 
@@ -196,7 +200,7 @@ class FocusLock:
         self.active = active
         if not active:
             self._release_clip()
-        self.log(f"[lock] {'RESUMED' if active else 'PAUSED'} (Ctrl+Shift+F11 to toggle)")
+        self.log(f"[lock] {'RESUMED' if active else 'PAUSED'} ({self.hk_pause} to toggle)")
 
     def stop(self):
         """Stop a lock running on another thread (e.g. from a GUI)."""
@@ -217,7 +221,7 @@ class FocusLock:
             raise ctypes.WinError(ctypes.get_last_error())
         timer = w.SetTimer(None, 0, TICK_MS, None)
         self._thread_id = w.GetCurrentThreadId()
-        self.log("[lock] running. Ctrl+Shift+F11 = pause/resume, Ctrl+Shift+F12 = quit")
+        self.log(f"[lock] running. {self.hk_pause} = pause/resume, {self.hk_stop} = unlock")
         try:
             msg = wt.MSG()
             while not self._stop_requested and w.GetMessageW(ctypes.byref(msg), None, 0, 0) > 0:
