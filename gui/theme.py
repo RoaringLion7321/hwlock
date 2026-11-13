@@ -25,7 +25,7 @@ STATUS = {
     "locked":    (("#d6f5e1", "#1d3b2a"), ("#1f7a43", "#5fd38d"), "Locked"),
     "paused":    (("#fdf0d5", "#43361a"), ("#9a6700", "#f2c45a"), "Paused"),
     "stopped":   (("#e5e7eb", "#3a3d44"), MUTED,                   "Not running"),
-    "notes_off": (("#fdf0d5", "#43361a"), ("#9a6700", "#f2c45a"), "Ready (off)"),
+    "notes_off": (("#fdf0d5", "#43361a"), ("#9a6700", "#f2c45a"), "Paused"),
     "notes_on":  (("#d6f5e1", "#1d3b2a"), ("#1f7a43", "#5fd38d"), "Typing into"),
 }
 

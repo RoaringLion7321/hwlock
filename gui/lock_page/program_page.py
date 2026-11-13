@@ -88,7 +88,7 @@ class ProgramPage(ctk.CTkFrame):
         """Show the current shortcuts (called again after they're changed in Settings)."""
         hk = self.app.hotkeys
         self.hotkey_hint.configure(
-            text=f"While locked:  {hk['lock_pause']} pause / resume   •   {hk['stop']} unlock"
+            text=f"While locked:  {hk['pause']} pause / resume   •   {hk['stop']} unlock"
         )
 
     # ------------------------------------------------------------------

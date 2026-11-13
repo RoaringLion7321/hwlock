@@ -24,7 +24,7 @@ class SettingsDialog(ctk.CTkToplevel):
     def __init__(self, app, hotkeys, hide_welcome, on_save, busy=False):
         super().__init__(app)
         self.title("hwlock settings")
-        self.geometry("520x460")
+        self.geometry("520x400")
         self.resizable(False, False)
         self.transient(app)               # stays above the main window
         self.on_save = on_save

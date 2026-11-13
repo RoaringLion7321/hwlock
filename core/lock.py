@@ -7,7 +7,7 @@ to an app" means:
   3. optionally confining the mouse cursor to the window.
 
 Hotkeys (active while the lock runs; defaults shown, configurable in core/settings.py):
-  Ctrl+Shift+F11  pause / resume the lock   ("lock_pause")
+  Ctrl+Shift+F11  pause / resume the lock   ("pause")
   Ctrl+Shift+F12  end the lock               ("stop")
 """
 import ctypes
@@ -45,7 +45,7 @@ class FocusLock:
             raise ValueError("need a process name, window title or window handle")
         self.process, self.title = process, title
         hotkeys = hotkeys or load_hotkeys()   # {action: Hotkey}, see core/settings.py
-        self.hk_pause, self.hk_stop = hotkeys["lock_pause"], hotkeys["stop"]
+        self.hk_pause, self.hk_stop = hotkeys["pause"], hotkeys["stop"]
         self.block = set(block)
         self.refocus = refocus
         self.clip_mouse = clip_mouse

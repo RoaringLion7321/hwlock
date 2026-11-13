@@ -11,11 +11,9 @@ from gui.theme import MUTED, ROW, font
 
 # What each shortcut does, in more detail than the short labels in core.settings.ACTIONS.
 DETAILS = {
-    "notes_toggle": "Turns notes mode on or off. While it's on, everything you type goes into "
-                    "the editor you picked, even when another window is in front.",
-    "lock_pause":   "Pauses the lock so you can use other windows for a moment. "
-                    "Press it again to lock again.",
-    "stop":         "Ends the lock or notes mode completely and brings the hwlock window back.",
+    "pause": "Lock mode: lets you use other windows for a moment. Notes mode: your typing "
+             "goes back to the window in front instead of the editor. Press it again to resume.",
+    "stop":  "Ends the lock or notes mode completely and brings the hwlock window back.",
 }
 
 
@@ -26,7 +24,7 @@ class WelcomeDialog(ctk.CTkToplevel):
     def __init__(self, app, hotkeys, hide, on_close, on_settings):
         super().__init__(app)
         self.title("hwlock shortcuts")
-        self.geometry("540x430")
+        self.geometry("540x340")
         self.resizable(False, False)
         self.transient(app)
         self.on_close = on_close

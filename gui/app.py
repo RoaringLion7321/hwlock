@@ -180,7 +180,7 @@ class App(ctk.CTk):
                 parts.append(f"typing into {np_.editor_name}")
                 state = "active"
             else:
-                parts.append(f"notes ready ({self.hotkeys['notes_toggle']})")
+                parts.append(f"notes paused ({self.hotkeys['pause']} to resume)")
                 state = state if state == "active" else "waiting"
         tooltip = "hwlock: " + ", ".join(parts) if parts else "hwlock"
         return state, tooltip, locked, notes_running, notes_on

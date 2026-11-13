@@ -65,7 +65,7 @@ class NotesPage(ctk.CTkFrame):
         self.start_btn.pack(side="right")
 
         self.onoff_btn = ctk.CTkButton(
-            bar, text="Turn on", width=110, height=38, font=font(14, "bold"),
+            bar, text="Resume", width=110, height=38, font=font(14, "bold"),
             command=self.toggle_notes, state="disabled",
         )
         self.onoff_btn.pack(side="right", padx=8)
@@ -101,10 +101,10 @@ class NotesPage(ctk.CTkFrame):
         self.intro.configure(text=(
             "Type into a text editor while you click around other windows. "
             "Pick the editor and press Start — notes mode turns on automatically. "
-            f"Use the Turn on / Turn off button (or {hk['notes_toggle']}) to toggle it."
+            f"Use the Pause / Resume button (or {hk['pause']}) to switch it off and on."
         ))
         self.hotkey_hint.configure(
-            text=f"{hk['notes_toggle']} notes on / off (works from any window)   •   {hk['stop']} stop"
+            text=f"{hk['pause']} pause / resume (works from any window)   •   {hk['stop']} stop"
         )
 
     # ------------------------------------------------------------------
@@ -209,11 +209,11 @@ class NotesPage(ctk.CTkFrame):
         self._shown_on = False   # both branches below show the "off" state
         if running:
             self.start_btn.configure(text="\u25a0  Stop", fg_color=RED, hover_color=RED_HOVER)
-            self.onoff_btn.configure(state="normal", text="Turn on")
+            self.onoff_btn.configure(state="normal", text="Resume")
             self._set_status("notes_off")
         else:
             self.start_btn.configure(text="\u25b6  Start", fg_color=GREEN, hover_color=GREEN_HOVER)
-            self.onoff_btn.configure(state="disabled", text="Turn on")
+            self.onoff_btn.configure(state="disabled", text="Resume")
             self._set_status("stopped")
         state = "disabled" if running else "normal"
         for widget in (self.refresh_btn, *self.radios):
@@ -246,10 +246,10 @@ class NotesPage(ctk.CTkFrame):
                 self._shown_on = on
                 if on:
                     self._set_status("notes_on", f" {self.editor_name}")
-                    self.onoff_btn.configure(text="Turn off")
+                    self.onoff_btn.configure(text="Pause")
                 else:
                     self._set_status("notes_off")
-                    self.onoff_btn.configure(text="Turn on")
+                    self.onoff_btn.configure(text="Resume")
 
         if self.thread is not None and not self.thread.is_alive():
             self.thread = None

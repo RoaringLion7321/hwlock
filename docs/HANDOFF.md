@@ -21,10 +21,11 @@ The code is in three packages; see [ARCHITECTURE.md](ARCHITECTURE.md) for how ev
     be used to unlock),
   - blocks Win / Alt+Tab / Alt+Esc / Ctrl+Esc (/ Menu key) while the target is focused,
   - optional `ClipCursor` to confine the mouse,
-  - hotkeys (configurable, defaults): Ctrl+Shift+F11 pause/resume, Ctrl+Shift+F12 unlock;
+  - hotkeys (configurable, shared with notes mode; defaults): Ctrl+Shift+F11 pause/resume,
+    Ctrl+Shift+F12 unlock;
     `stop()` for use from another thread.
-- `core/notes.py`: `NotesMode`, notes mode (Idea A below): its hotkey (default Ctrl+Shift+F10)
-  sends all typing to a background text editor.
+- `core/notes.py`: `NotesMode`, notes mode (Idea A below): sends all typing to a background
+  text editor; the same pause hotkey as the lock (default Ctrl+Shift+F11) turns it off / on.
 - `core/settings.py`: the configurable hotkeys (`Hotkey`, validation, load/save) and the
   startup pop-up's "don't show again" flag (`hide_welcome`) in `%APPDATA%\hwlock\settings.json`. Rules: must include Ctrl, no duplicates, Ctrl+Alt+Del
   reserved; anything invalid in the file falls back to the default.

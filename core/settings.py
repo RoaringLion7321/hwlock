@@ -2,9 +2,8 @@
 
 The file lives at %APPDATA%\\hwlock\\settings.json and looks like:
 
-    {"hotkeys": {"notes_toggle": "Ctrl+Shift+F10",
-                 "lock_pause":   "Ctrl+Shift+F11",
-                 "stop":         "Ctrl+Shift+F12"},
+    {"hotkeys": {"pause": "Ctrl+Shift+F11",
+                 "stop":  "Ctrl+Shift+F12"},
      "hide_welcome": false}
 
 "hide_welcome" is the "Don't show this again" choice for the shortcuts pop-up the GUI
@@ -19,12 +18,15 @@ from dataclasses import dataclass
 
 from core import win32 as w
 
-# action id -> (default shortcut, what it does)
+# action id -> (default shortcut, what it does). Both work in Lock and Notes mode:
+# "pause" pauses / resumes the lock, or turns notes mode's typing redirection off / on.
 ACTIONS = {
-    "notes_toggle": ("Ctrl+Shift+F10", "Notes mode on / off"),
-    "lock_pause":   ("Ctrl+Shift+F11", "Pause / resume the lock"),
-    "stop":         ("Ctrl+Shift+F12", "Stop lock / notes mode"),
+    "pause": ("Ctrl+Shift+F11", "Pause / resume"),
+    "stop":  ("Ctrl+Shift+F12", "Stop"),
 }
+
+# Older settings files had separate pause keys for each mode; the first valid one is used.
+_LEGACY = {"pause": ("lock_pause", "notes_toggle")}
 
 # Keys a shortcut can end with: F1-F24, A-Z, 0-9 and the navigation block.
 KEY_NAMES = {0x70 + i: f"F{i + 1}" for i in range(24)}
@@ -133,12 +135,14 @@ def load_hotkeys(path=None):
     saved = _read(path or settings_path()).get("hotkeys")
     if isinstance(saved, dict):
         for action in ACTIONS:
-            try:
-                hk = Hotkey.parse(saved[action])
-            except (KeyError, ValueError):
-                continue
-            if problem(hk) is None:
-                result[action] = hk
+            for key in (action, *_LEGACY.get(action, ())):
+                try:
+                    hk = Hotkey.parse(saved[key])
+                except (KeyError, ValueError):
+                    continue
+                if problem(hk) is None:
+                    result[action] = hk
+                    break
     # e.g. a hand-edited file that gives two actions the same shortcut
     return default_hotkeys() if validate(result) else result
 

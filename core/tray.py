@@ -49,7 +49,7 @@ class Tray:
             pystray.MenuItem("Show hwlock", send("show"), default=True),   # default = left click
             pystray.Menu.SEPARATOR,
             pystray.MenuItem("Unlock", send("unlock"), visible=lambda _i: self.locked),
-            pystray.MenuItem(lambda _i: "Notes mode off" if self.notes_on else "Notes mode on",
+            pystray.MenuItem(lambda _i: "Pause notes mode" if self.notes_on else "Resume notes mode",
                              send("notes_toggle"), visible=lambda _i: self.notes_running),
             pystray.MenuItem("Stop notes mode", send("notes_stop"), visible=lambda _i: self.notes_running),
             pystray.MenuItem("Quit hwlock", send("quit")),

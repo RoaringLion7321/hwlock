@@ -61,7 +61,7 @@ hwlock solves these problems in user mode, using only standard Windows interface
   not just any window of that program. Hotkeys pause the lock (Ctrl+Shift+F11 by default) or end
   it (Ctrl+Shift+F12), an optional timer ends it automatically, and the lock re-attaches
   automatically if the program is restarted.
-- **Notes mode (`NotesMode`).** With Ctrl+Shift+F10, the same kind of hook takes every keystroke
+- **Notes mode (`NotesMode`).** While it's on (the same pause hotkey pauses and resumes it), the same kind of hook takes every keystroke
   away from the window in front and sends it straight to the chosen editor's text box. Characters
   are worked out from hwlock's own record of held keys and the editor's keyboard layout, so
   Shift, Caps Lock and international (AltGr) characters come out correctly. Common shortcuts

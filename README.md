@@ -93,9 +93,9 @@ Notes Mode lets you type directly into a text editor (like Notepad) while keepin
 2. Select an open text editor from the list.
 3. Click **Start**:
    - Notes mode **turns on automatically** the moment you start.
-   - The GUI stays open so you can conveniently click **Turn off / Turn on** whenever you want to pause or resume redirection.
+   - The GUI stays open so you can conveniently click **Pause / Resume** whenever you want to pause or resume redirection.
    - Keystrokes are routed directly into the editor's text control using Win32 message delivery without stealing window focus.
-4. Use **Ctrl+Shift+F10** from any active window to toggle notes mode on and off on the fly (an audible chime confirms the switch).
+4. Use **Ctrl+Shift+F11** from any active window to pause and resume notes mode on the fly (an audible chime confirms the switch).
 
 While it's on, every key goes to the text editor, even though another window is in front. The mouse
 works normally everywhere. Supported: letters and symbols (including AltGr), Enter, Tab,
@@ -118,8 +118,7 @@ defaults; you can change them in [Settings](#settings) (everything in this READM
 
 | Default hotkey | Context | Action |
 | :--- | :--- | :--- |
-| <kbd>Ctrl</kbd> + <kbd>Shift</kbd> + <kbd>F10</kbd> | Notes Mode | Toggle typing redirection **on / off** (audio feedback) |
-| <kbd>Ctrl</kbd> + <kbd>Shift</kbd> + <kbd>F11</kbd> | Lock Mode | **Pause / resume** keyboard and mouse confinement |
+| <kbd>Ctrl</kbd> + <kbd>Shift</kbd> + <kbd>F11</kbd> | Any Mode | **Pause / resume**: the lock (keyboard and mouse confinement), or Notes Mode's typing redirection (audio feedback) |
 | <kbd>Ctrl</kbd> + <kbd>Shift</kbd> + <kbd>F12</kbd> | Any Mode | **Emergency Unlock / Stop** (restores window immediately) |
 
 > **Safety note:** <kbd>Ctrl</kbd> + <kbd>Alt</kbd> + <kbd>Del</kbd> is reserved by the Windows kernel and will always work to regain system control.
@@ -158,7 +157,7 @@ hwlock displays a status icon in the notification area:
 
 - 🔵 **Blue (Idle):** hwlock is open and waiting.
 - 🟢 **Green (Active):** A program is currently locked, or Notes Mode is actively redirecting typing.
-- 🟡 **Amber (Waiting / Paused):** Lock is paused (<kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>F11</kbd>), or Notes Mode hook is running but turned off.
+- 🟡 **Amber (Waiting / Paused):** Lock is paused (<kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>F11</kbd>), or Notes Mode is running but paused.
 
 **Right-click the tray icon** to:
 - Show/restore the hwlock window

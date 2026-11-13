@@ -201,7 +201,7 @@ window the target owns (its dialogs and message boxes, found with
    the thread keeps pumping messages, so this loop *is* the lock running. It ends on `WM_QUIT`.
 
 ### Deciding about each key (`_handle_key`)
-1. **Hotkeys first.** The `lock_pause` hotkey (default Ctrl+Shift+F11) toggles pause; the `stop`
+1. **Hotkeys first.** The `pause` hotkey (default Ctrl+Shift+F11) toggles pause; the `stop`
    hotkey (default Ctrl+Shift+F12) posts `WM_QUIT` to end the loop. Both are swallowed so the
    game doesn't see them. They come from `hotkeys=` (or `load_hotkeys()`, see settings.py) and
    are checked with `Hotkey.matches(vk, w.key_down)`: the lock never swallows Ctrl/Shift/Alt, so
@@ -264,7 +264,7 @@ to Notepad directly.
 - **Same hook as lock.py.** `run()` installs a low-level keyboard hook, starts a 500 ms timer
   and pumps messages, exactly like `FocusLock.run()`. The timer only checks that the editor
   is still open (and turns notes mode off if it closed).
-- **Toggle.** The `notes_toggle` hotkey (default Ctrl+Shift+F10) calls `toggle()` → `set_on()`. Turning on fails (with a log
+- **Toggle.** The `pause` hotkey (default Ctrl+Shift+F11, shared with Lock mode) calls `toggle()` → `set_on()`. Turning on fails (with a log
   message) if the editor or its text box can't be found. A Windows sound plays on each
   change, since you're usually looking at another window.
 - **Finding the text box** (`find_text_box`). Keys have to go to the text box *inside* the
@@ -279,8 +279,8 @@ to Notepad directly.
 2. `KeyState.update()` records the key as held or released. This is hwlock's *own* record
    of the keyboard. Windows' record never sees keys the hook swallows, so if hwlock asked
    Windows "is Shift held?" while notes mode is on, the answer would always be no.
-3. Hotkeys are checked against that record (`Hotkey.matches(vk, self.keys.held)`): `notes_toggle`
-   (default Ctrl+Shift+F10) toggles, `stop` (default Ctrl+Shift+F12) quits. A held-down hotkey
+3. Hotkeys are checked against that record (`Hotkey.matches(vk, self.keys.held)`): `pause`
+   (default Ctrl+Shift+F11) toggles, `stop` (default Ctrl+Shift+F12) quits. A held-down hotkey
    only fires once, because auto-repeat key-downs find the key already in `_swallowed`.
 4. Notes mode off → let the key through. On → swallow it and deliver it (`_deliver_down`).
 5. A key-up is swallowed (and delivered) only if its key-down was, using the `_swallowed` set,
@@ -314,11 +314,14 @@ keyboard while they're in front, so there's no Windows text box to send messages
 
 ## settings.py: configurable hotkeys
 
-`ACTIONS` lists the three hotkey actions with their defaults: `notes_toggle` (Ctrl+Shift+F10),
-`lock_pause` (Ctrl+Shift+F11) and `stop` (Ctrl+Shift+F12, ends whichever mode is running).
+`ACTIONS` lists the two hotkey actions with their defaults, both shared by Lock and Notes mode
+(only one mode runs at a time): `pause` (Ctrl+Shift+F11; pauses / resumes the lock, or turns
+notes mode's redirection off / on) and `stop` (Ctrl+Shift+F12, ends whichever mode is running).
+Older settings files had separate `lock_pause` and `notes_toggle` keys; `load_hotkeys()` uses the
+first valid one of them for `pause` (`_LEGACY`), and the next save writes only `pause`.
 
 - **`Hotkey`** is one key (`vk`) plus an *exact* set of modifiers (`ctrl`, `shift`, `alt`).
-  `str()` gives "Ctrl+Shift+F10" and `Hotkey.parse()` reads it back. `matches(vk, held)` takes
+  `str()` gives "Ctrl+Shift+F11" and `Hotkey.parse()` reads it back. `matches(vk, held)` takes
   a `held(vk)` function, because the lock asks Windows (`w.key_down`) while notes mode must ask
   its own `KeyState`. Modifiers must match exactly, so Ctrl+Shift+Q doesn't fire Ctrl+Q.
 - **Rules** (`problem()` for one hotkey, `validate()` for the set): must include Ctrl, so a
@@ -437,10 +440,10 @@ Built with CustomTkinter (a modern-looking layer over Python's standard Tkinter)
   program if it's still running.
 - **`NotesPage`** (Notes tab): lists only windows that contain a supported text box
   (`find_text_box`), auto-selecting the only one if there's just one. **Start** runs `NotesMode`
-  on a background thread for the chosen window, with notes mode already on; **Turn on/off**
-  does the same as the notes hotkey. It uses the same thread + queue + `_poll()` pattern as the
+  on a background thread for the chosen window, with notes mode already on; **Pause / Resume**
+  does the same as the pause hotkey. It uses the same thread + queue + `_poll()` pattern as the
   Lock page (below), and reads `NotesMode.on` on each poll to update its status pill and the
-  Turn on/off button.
+  Pause / Resume button.
 
 ### How Lock works with threads
 Tkinter must only be touched from its own thread, and `FocusLock.run()` blocks in its

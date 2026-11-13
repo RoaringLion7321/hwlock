@@ -1,6 +1,6 @@
 """Notes mode: type into a text editor while another window is in front.
 
-Press the notes hotkey (Ctrl+Shift+F10 by default) to switch notes mode on. From then on
+Press the pause hotkey (Ctrl+Shift+F11 by default) to switch notes mode on. From then on
 every key you type goes into the chosen editor (Notepad, Notepad++, ...) even though it's in
 the background, so you can click around a browser or a document with the mouse and keep
 writing. Press it again to give the keyboard back to the window in front.
@@ -22,8 +22,8 @@ Doesn't work with Electron/browser apps (VS Code, Discord, ...), which ignore ke
 to them while they're in the background.
 
 Hotkeys (from any window; defaults shown, configurable in core/settings.py):
-  Ctrl+Shift+F10  notes mode on / off   ("notes_toggle")
-  Ctrl+Shift+F12  stop notes mode       ("stop")
+  Ctrl+Shift+F11  notes mode on / off (pause / resume)   ("pause")
+  Ctrl+Shift+F12  stop notes mode                         ("stop")
 """
 import ctypes
 import winsound
@@ -118,7 +118,7 @@ class NotesMode:
             raise ValueError("need a process name, window title or window handle")
         self.process, self.title = process, title
         hotkeys = hotkeys or load_hotkeys()   # {action: Hotkey}, see core/settings.py
-        self.hk_toggle, self.hk_stop = hotkeys["notes_toggle"], hotkeys["stop"]
+        self.hk_pause, self.hk_stop = hotkeys["pause"], hotkeys["stop"]
         self.window = hwnd          # the editor's main window
         self.on = False
         self.sound = sound
@@ -170,7 +170,7 @@ class NotesMode:
         if self.sound:
             winsound.MessageBeep(winsound.MB_ICONASTERISK if on else winsound.MB_OK)
         self.log(f"[notes] {'ON: typing goes to the editor' if on else 'OFF: keyboard back to normal'}"
-                 f" ({self.hk_toggle} to toggle)")
+                 f" ({self.hk_pause} to {'pause' if on else 'resume'})")
 
     def toggle(self):
         self.set_on(not self.on)
@@ -197,10 +197,10 @@ class NotesMode:
         ctrl, alt = self.keys.held(w.VK_CONTROL), self.keys.held(w.VK_MENU)
 
         # Hotkeys, checked with our own key record (Windows' doesn't see swallowed Ctrl/Shift).
-        toggle, stop = self.hk_toggle.matches(vk, self.keys.held), self.hk_stop.matches(vk, self.keys.held)
-        if toggle or stop:
+        pause, stop = self.hk_pause.matches(vk, self.keys.held), self.hk_stop.matches(vk, self.keys.held)
+        if pause or stop:
             if down and vk not in self._swallowed:
-                if toggle:
+                if pause:
                     self.toggle()
                 else:
                     self.log(f"[notes] {self.hk_stop} pressed, stopping")
@@ -296,13 +296,13 @@ class NotesMode:
 
     def run(self):
         if not self._find_editor():
-            self.log(f"[notes] editor isn't open yet; open it, then press {self.hk_toggle}")
+            self.log(f"[notes] editor isn't open yet; open it, then press {self.hk_pause}")
         self._hook = w.SetWindowsHookExW(w.WH_KEYBOARD_LL, self._hook_proc, w.GetModuleHandleW(None), 0)
         if not self._hook:
             raise ctypes.WinError(ctypes.get_last_error())
         self._thread_id = w.GetCurrentThreadId()
         timer = w.SetTimer(None, 0, TICK_MS, None)
-        self.log(f"[notes] ready. {self.hk_toggle} = notes mode on/off, {self.hk_stop} = stop")
+        self.log(f"[notes] ready. {self.hk_pause} = notes mode on/off (pause/resume), {self.hk_stop} = stop")
         if self._start_on:
             self.set_on(True)
         try:
