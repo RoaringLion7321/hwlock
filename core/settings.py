@@ -1,10 +1,14 @@
-"""User settings: the global hotkeys, saved as JSON.
+"""User settings: the global hotkeys and the startup pop-up, saved as JSON.
 
 The file lives at %APPDATA%\\hwlock\\settings.json and looks like:
 
     {"hotkeys": {"notes_toggle": "Ctrl+Shift+F10",
                  "lock_pause":   "Ctrl+Shift+F11",
-                 "stop":         "Ctrl+Shift+F12"}}
+                 "stop":         "Ctrl+Shift+F12"},
+     "hide_welcome": false}
+
+"hide_welcome" is the "Don't show this again" choice for the shortcuts pop-up the GUI
+shows at launch.
 
 Anything missing or invalid falls back to the default, so a broken file never stops
 hwlock from starting. The GUI edits it from the Settings dialog; the CLI reads it too.
@@ -19,7 +23,7 @@ from core import win32 as w
 ACTIONS = {
     "notes_toggle": ("Ctrl+Shift+F10", "Notes mode on / off"),
     "lock_pause":   ("Ctrl+Shift+F11", "Pause / resume the lock"),
-    "stop":         ("Ctrl+Shift+F12", "Unlock / stop lock mode"),
+    "stop":         ("Ctrl+Shift+F12", "Stop lock / notes mode"),
 }
 
 # Keys a shortcut can end with: F1-F24, A-Z, 0-9 and the navigation block.
@@ -147,6 +151,23 @@ def save_hotkeys(hotkeys, path=None):
     path = path or settings_path()
     data = _read(path)   # keep any other settings in the file
     data["hotkeys"] = {action: str(hotkeys[action]) for action in ACTIONS}
+    _write(path, data)
+
+
+def load_hide_welcome(path=None):
+    """True if the user chose "Don't show this again" for the startup shortcuts pop-up."""
+    return _read(path or settings_path()).get("hide_welcome") is True
+
+
+def save_hide_welcome(hide, path=None):
+    """Save the "Don't show this again" choice. Raises OSError if the file can't be written."""
+    path = path or settings_path()
+    data = _read(path)   # keep the hotkeys and anything else in the file
+    data["hide_welcome"] = bool(hide)
+    _write(path, data)
+
+
+def _write(path, data):
     os.makedirs(os.path.dirname(path), exist_ok=True)
     tmp = path + ".tmp"
     with open(tmp, "w", encoding="utf-8") as f:

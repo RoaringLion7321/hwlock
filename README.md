@@ -143,6 +143,13 @@ exactly, so <kbd>Ctrl</kbd> + <kbd>Shift</kbd> + <kbd>Q</kbd> doesn't trigger a 
 Shortcuts can't be changed while Lock or Notes Mode is running, and new ones apply the next time
 a mode starts. They're saved in `%APPDATA%\hwlock\settings.json`, which the command line uses too.
 
+### Shortcuts pop-up
+
+When the GUI starts, a pop-up lists the shortcuts and what each one does (**Change shortcuts…**
+opens Settings). Tick **Don't show this again** to skip it on later launches; the same option is
+under **Startup** in Settings, so you can turn the pop-up back on there. Unlike the shortcuts,
+it can be changed while a mode is running.
+
 ---
 
 ## System Tray Icon
@@ -208,7 +215,7 @@ hwlock/
 │   ├── devices.py         # Raw Input device enumeration and merging
 │   ├── lock.py            # FocusLock engine (keyboard hook, focus, mouse clip)
 │   ├── notes.py           # NotesMode engine (background keystroke routing)
-│   ├── settings.py        # Hotkey settings: parsing, validation, load/save (JSON)
+│   ├── settings.py        # Settings: hotkeys (parsing, validation) and startup pop-up, load/save (JSON)
 │   ├── windows.py         # Win32 window listing and process matching
 │   ├── tray.py            # System tray icon generator and menu controller
 │   └── win32.py           # Low-level ctypes Win32 API bindings
@@ -218,7 +225,8 @@ hwlock/
 │   ├── __main__.py        # Allows `python -m gui`
 │   ├── app.py             # main() launcher, main CTk window & tray lifecycle
 │   ├── header.py          # Top navigation header, step indicators & settings button
-│   ├── settings_dialog.py # Settings window (record new keyboard shortcuts)
+│   ├── settings_dialog.py # Settings window (record new keyboard shortcuts, startup pop-up)
+│   ├── welcome_dialog.py  # Shortcuts pop-up shown at launch ("Don't show this again")
 │   ├── theme.py           # Color palette, font definitions, and status badges
 │   ├── widgets.py         # Shared interactive UI components (ClickRow)
 │   │

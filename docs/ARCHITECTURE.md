@@ -335,6 +335,11 @@ keyboard while they're in front, so there's no Windows text box to send messages
 `FocusLock` and `NotesMode` take `hotkeys=` (the GUI passes `App.hotkeys`) and fall back to
 `load_hotkeys()`, which is what the CLI uses.
 
+The same file holds `"hide_welcome"`, the "Don't show this again" choice for the GUI's shortcuts
+pop-up. `load_hide_welcome()` is True only for a literal `true` (anything else shows the pop-up),
+and `save_hide_welcome()` rewrites just that key. Both savers go through `_write()` (temp file +
+`os.replace`) and keep the rest of the file.
+
 ---
 
 ## tray.py: the system tray icon (`Tray`)
@@ -363,7 +368,8 @@ Built with CustomTkinter (a modern-looking layer over Python's standard Tkinter)
 |---|---|
 | `gui/app.py` | `App` (the main window) and `main()`, the one function that launches the GUI |
 | `gui/header.py` | `Header`: title, Lock / Notes tab switch, step chips, ⚙ settings button |
-| `gui/settings_dialog.py` | `SettingsDialog`, the window for changing the keyboard shortcuts |
+| `gui/settings_dialog.py` | `SettingsDialog`, the window for changing the keyboard shortcuts and the startup pop-up |
+| `gui/welcome_dialog.py` | `WelcomeDialog`, the shortcuts pop-up shown at launch |
 | `gui/theme.py` | shared colours (light/dark pairs), status-badge styles, key labels, `font()` |
 | `gui/widgets.py` | `ClickRow`, the clickable list row used by every page |
 | `gui/lock_page/device_page.py` | `DevicePage`, Lock step 1 |
@@ -383,8 +389,10 @@ Built with CustomTkinter (a modern-looking layer over Python's standard Tkinter)
   hwlock to the tray; **Quit hwlock** in the tray menu quits for real (`_on_close`), stopping a
   running lock or notes mode first. It holds the hotkeys too: `App.hotkeys` is loaded at
   startup, `open_settings()` opens the Settings dialog (read-only while a mode runs), and
-  `apply_hotkeys()` stores a saved set and asks both pages to refresh their hint text
-  (`show_hotkeys()`); the tray tooltip picks it up on its next poll.
+  `apply_settings()` stores a saved set and asks both pages to refresh their hint text
+  (`show_hotkeys()`); the tray tooltip picks it up on its next poll. `App.hide_welcome` is
+  loaded at startup too; unless it's set, `show_welcome()` opens the `WelcomeDialog` 300 ms
+  after launch, and `_welcome_closed()` saves the checkbox if it changed.
 - **`Header`**: the title, the **Lock / Notes** tab switch (a `CTkSegmentedButton`), the
   "1 Hardware / 2 Program" step chips and the ⚙ settings button. `set_step` highlights a chip;
   `show_steps` hides them on the Notes tab. The gear is packed before the chips so it stays
@@ -395,8 +403,15 @@ Built with CustomTkinter (a modern-looking layer over Python's standard Tkinter)
   the virtual-key code) and the Ctrl/Shift/Alt state read from Windows. No keyboard hook is
   running while the dialog can edit, so that state is accurate. Problems (`problem()`,
   duplicates via `validate()`) are shown in red; **Save** writes with `save_hotkeys()` and calls
-  `App.apply_hotkeys()`. While a lock or notes mode runs, every control is disabled, because the
-  running hook would catch the keys being recorded; new hotkeys apply from the next start.
+  `App.apply_settings()`. Below the shortcuts, **Startup** has the "Don't show the shortcuts
+  pop-up" checkbox (the same `hide_welcome` setting as the pop-up's own checkbox). While a lock
+  or notes mode runs, the shortcut buttons and Reset are disabled, because the running hook would
+  catch the keys being recorded (new hotkeys apply from the next start); the Startup checkbox and
+  Save stay usable, and Save then only writes that checkbox.
+- **`WelcomeDialog`**: a modal pop-up listing each hotkey (`App.hotkeys`), its label from
+  `ACTIONS` and a longer explanation (`DETAILS`). OK, Enter, Esc and the window's X all close it
+  and report the "Don't show this again" checkbox to `App._welcome_closed()`; **Change
+  shortcuts…** closes it and opens Settings.
 - **`ClickRow`**: a rounded list row that highlights on hover and reacts to clicks anywhere
   inside it. `wire()` walks every CustomTkinter widget inside the row (including nested
   frames) and binds click/hover. Checkboxes and radio buttons are skipped for clicks: they

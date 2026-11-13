@@ -1,18 +1,19 @@
 """App — the top-level CTk window.
 
 Owns the header, the body frame that hosts the three pages, the page-switching
-logic, the settings (hotkeys), the system-tray plumbing, and clean shutdown.
+logic, the settings (hotkeys, startup pop-up), the system-tray plumbing, and clean shutdown.
 
 `main()` is the one place that launches the GUI (used by run.py, `python -m gui`
 and `python -m cli gui`).
 """
 import ctypes
 import customtkinter as ctk
-from core.settings import load_hotkeys
+from core.settings import load_hide_welcome, load_hotkeys, save_hide_welcome
 from gui.header import Header
 from gui.notes_page import NotesPage
 from gui.lock_page import DevicePage, ProgramPage
 from gui.settings_dialog import SettingsDialog
+from gui.welcome_dialog import WelcomeDialog
 
 
 def main():
@@ -36,6 +37,7 @@ class App(ctk.CTk):
         self.minsize(680, 580)
         # {action: Hotkey}; the pages pass these to FocusLock / NotesMode and show them in hints
         self.hotkeys = load_hotkeys()
+        self.hide_welcome = load_hide_welcome()   # "Don't show this again" on the shortcuts pop-up
         self._settings = None   # the open SettingsDialog, if any
 
         # ---- header ----
@@ -63,9 +65,28 @@ class App(ctk.CTk):
         except Exception as e:
             self.program_page._log(f"[tray] no tray icon: {e}")
 
+        # ---- shortcuts pop-up (once the main window is drawn) ----
+        if not self.hide_welcome:
+            self.after(300, self.show_welcome)
+
     # ------------------------------------------------------------------
     # Settings
     # ------------------------------------------------------------------
+
+    def show_welcome(self):
+        """The shortcuts pop-up shown at launch (unless "Don't show this again" was ticked)."""
+        WelcomeDialog(self, self.hotkeys, hide=self.hide_welcome,
+                      on_close=self._welcome_closed, on_settings=self.open_settings)
+
+    def _welcome_closed(self, hide):
+        if hide == self.hide_welcome:
+            return
+        try:
+            save_hide_welcome(hide)
+        except OSError as e:
+            self.program_page._log(f"[settings] couldn't save: {e}")
+            return
+        self.hide_welcome = hide
 
     def open_settings(self):
         """Open the Settings dialog (or bring the open one to the front)."""
@@ -74,10 +95,12 @@ class App(ctk.CTk):
             self._settings.focus_force()
             return
         busy = self.program_page.locked() or self.notes_page.running()
-        self._settings = SettingsDialog(self, self.hotkeys, on_save=self.apply_hotkeys, busy=busy)
+        self._settings = SettingsDialog(self, self.hotkeys, self.hide_welcome,
+                                        on_save=self.apply_settings, busy=busy)
 
-    def apply_hotkeys(self, hotkeys):
-        """New hotkeys were saved: use them for the next lock / notes session and update hints."""
+    def apply_settings(self, hotkeys, hide_welcome):
+        """Settings were saved: use the hotkeys for the next lock / notes session and update hints."""
+        self.hide_welcome = hide_welcome
         self.hotkeys = hotkeys
         self.program_page.show_hotkeys()
         self.notes_page.show_hotkeys()

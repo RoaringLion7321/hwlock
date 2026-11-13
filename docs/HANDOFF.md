@@ -25,8 +25,8 @@ The code is in three packages; see [ARCHITECTURE.md](ARCHITECTURE.md) for how ev
     `stop()` for use from another thread.
 - `core/notes.py`: `NotesMode`, notes mode (Idea A below): its hotkey (default Ctrl+Shift+F10)
   sends all typing to a background text editor.
-- `core/settings.py`: the configurable hotkeys (`Hotkey`, validation, load/save) in
-  `%APPDATA%\hwlock\settings.json`. Rules: must include Ctrl, no duplicates, Ctrl+Alt+Del
+- `core/settings.py`: the configurable hotkeys (`Hotkey`, validation, load/save) and the
+  startup pop-up's "don't show again" flag (`hide_welcome`) in `%APPDATA%\hwlock\settings.json`. Rules: must include Ctrl, no duplicates, Ctrl+Alt+Del
   reserved; anything invalid in the file falls back to the default.
 - `core/tray.py`: system tray icon (pystray + Pillow), colour-coded by state, with a menu
   (show, unlock, notes on/off, stop notes, quit).
@@ -37,7 +37,9 @@ The code is in three packages; see [ARCHITECTURE.md](ARCHITECTURE.md) for how ev
   program → Lock/Unlock, with an optional auto-unlock timer. Notes: pick an editor → Start (notes mode turns on immediately). The window hides to
   the tray while locked. Only one of Lock / Notes can run at a time. The ⚙ button opens
   Settings, where the shortcuts are changed by pressing the new keys (disabled while a mode
-  runs; changes apply from the next start).
+  runs; changes apply from the next start). At launch a pop-up (`gui/welcome_dialog.py`) lists the
+  shortcuts and what they do; "Don't show this again" hides it, and Settings → Startup turns it
+  back on.
 - `run.py`: entry point. No arguments → GUI, otherwise → CLI.
 - Imports are package-based (`from core.lock import FocusLock`), so run everything from the
   repo root.
